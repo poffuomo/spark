@@ -173,6 +173,12 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
           addressToExecutorId(executorAddress) = executorId
           totalCoreCount.addAndGet(cores)
           totalRegisteredExecutors.addAndGet(1)
+
+          // MGI: print the total number of cores in the cluster and the total number of
+          // executors already registered.
+          logInfo(s"Total number of cores: $totalCoreCount")
+          logInfo(s"Total registered executors: $totalRegisteredExecutors")
+
           val data = new ExecutorData(executorRef, executorRef.address, hostname,
             cores, cores, logUrls)
           // This must be synchronized because variables mutated

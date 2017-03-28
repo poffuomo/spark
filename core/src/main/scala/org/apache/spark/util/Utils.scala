@@ -1257,7 +1257,7 @@ private[spark] object Utils extends Logging {
    *
    * NOTE: This method is to be called by the driver-side components to avoid stopping the
    * user-started JVM process completely; in contrast, tryOrExit is to be called in the
-   * spark-started JVM process .
+   * spark-started JVM process.
    */
   def tryOrStopSparkContext(sc: SparkContext)(block: => Unit) {
     try {
