@@ -18,7 +18,7 @@ package org.apache.spark.sql.internal
 
 import org.apache.spark.SparkConf
 import org.apache.spark.annotation.{Experimental, InterfaceStability}
-import org.apache.spark.sql.{ExperimentalMethods, SparkSession, Strategy}
+import org.apache.spark.sql.{ExperimentalMethods, SparkSession, Strategy, UDFRegistration}
 import org.apache.spark.sql.catalyst.analysis.{Analyzer, FunctionRegistry}
 import org.apache.spark.sql.catalyst.catalog.SessionCatalog
 import org.apache.spark.sql.catalyst.optimizer.Optimizer
@@ -28,6 +28,7 @@ import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.execution.{QueryExecution, SparkOptimizer, SparkPlanner, SparkSqlParser}
 import org.apache.spark.sql.execution.datasources._
 import org.apache.spark.sql.streaming.StreamingQueryManager
+import org.apache.spark.sql.util.ExecutionListenerManager
 
 /**
  * Builder class that coordinates construction of a new [[SessionState]].
@@ -110,6 +111,11 @@ abstract class BaseSessionStateBuilder(
   protected lazy val sqlParser: ParserInterface = new SparkSqlParser(conf)
 
   /**
+   * ResourceLoader that is used to load function resources and jars.
+   */
+  protected lazy val resourceLoader: SessionResourceLoader = new SessionResourceLoader(session)
+
+  /**
    * Catalog for managing table and database states. If there is a pre-existing catalog, the state
    * of that catalog (temp tables & current database) will be copied into the new catalog.
    *
@@ -123,10 +129,18 @@ abstract class BaseSessionStateBuilder(
       conf,
       SessionState.newHadoopConf(session.sparkContext.hadoopConfiguration, conf),
       sqlParser,
-      new SessionFunctionResourceLoader(session))
+      resourceLoader)
     parentState.foreach(_.catalog.copyStateTo(catalog))
     catalog
   }
+
+  /**
+   * Interface exposed to the user for registering user-defined functions.
+   *
+   * Note 1: The user-defined functions must be deterministic.
+   * Note 2: This depends on the `functionRegistry` field.
+   */
+  protected def udfRegistration: UDFRegistration = new UDFRegistration(functionRegistry)
 
   /**
    * Logical query plan analyzer for resolving unresolved attributes and relations.
@@ -228,6 +242,16 @@ abstract class BaseSessionStateBuilder(
   protected def streamingQueryManager: StreamingQueryManager = new StreamingQueryManager(session)
 
   /**
+   * An interface to register custom [[org.apache.spark.sql.util.QueryExecutionListener]]s
+   * that listen for execution metrics.
+   *
+   * This gets cloned from parent if available, otherwise is a new instance is created.
+   */
+  protected def listenerManager: ExecutionListenerManager = {
+    parentState.map(_.listenerManager.clone()).getOrElse(new ExecutionListenerManager)
+  }
+
+  /**
    * Function used to make clones of the session state.
    */
   protected def createClone: (SparkSession, SessionState) => SessionState = {
@@ -240,17 +264,19 @@ abstract class BaseSessionStateBuilder(
    */
   def build(): SessionState = {
     new SessionState(
-      session.sparkContext,
       session.sharedState,
       conf,
       experimentalMethods,
       functionRegistry,
+      udfRegistration,
       catalog,
       sqlParser,
       analyzer,
       optimizer,
       planner,
       streamingQueryManager,
+      listenerManager,
+      resourceLoader,
       createQueryExecution,
       createClone)
   }
