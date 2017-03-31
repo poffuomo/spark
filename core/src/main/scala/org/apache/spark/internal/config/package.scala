@@ -72,6 +72,9 @@ package object config {
   private[spark] val DYN_ALLOCATION_MAX_EXECUTORS =
     ConfigBuilder("spark.dynamicAllocation.maxExecutors").intConf.createWithDefault(Int.MaxValue)
 
+  private[spark] val DYN_ALLOCATION_MAX_PERC_EXECUTORS =
+    ConfigBuilder("spark.dynamicAllocation.maxPercExecutors").doubleConf.createWithDefault(1.0)
+
   private[spark] val SHUFFLE_SERVICE_ENABLED =
     ConfigBuilder("spark.shuffle.service.enabled").booleanConf.createWithDefault(false)
 

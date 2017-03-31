@@ -311,6 +311,7 @@ class SparkContext(config: SparkConf) extends Logging {
    * Its format depends on the scheduler implementation.
    * (i.e.
    *  in case of local spark app something like 'local-1433865536131'
+   *  in case of local simulated cluster something like 'app-20170330154215-0000'
    *  in case of YARN something like 'application_1433865536131_34483'
    * )
    */

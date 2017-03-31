@@ -17,6 +17,7 @@
 
 package org.apache.spark
 
+import java.text.NumberFormat
 import java.util.concurrent.TimeUnit
 
 import scala.collection.mutable
@@ -26,7 +27,8 @@ import scala.util.control.ControlThrowable
 import com.codahale.metrics.{Gauge, MetricRegistry}
 
 import org.apache.spark.internal.Logging
-import org.apache.spark.internal.config.{DYN_ALLOCATION_MAX_EXECUTORS, DYN_ALLOCATION_MIN_EXECUTORS}
+import org.apache.spark.internal.config.{
+  DYN_ALLOCATION_MAX_EXECUTORS, DYN_ALLOCATION_MAX_PERC_EXECUTORS, DYN_ALLOCATION_MIN_EXECUTORS}
 import org.apache.spark.metrics.source.Source
 import org.apache.spark.scheduler._
 import org.apache.spark.util.{Clock, SystemClock, ThreadUtils, Utils}
@@ -68,6 +70,9 @@ import org.apache.spark.util.{Clock, SystemClock, ThreadUtils, Utils}
  *   spark.dynamicAllocation.maxExecutors - Upper bound on the number of executors
  *   spark.dynamicAllocation.initialExecutors - Number of executors to start with
  *
+ *   spark.dynamicAllocation.maxPercExecutors -
+ *     Upper bound on the percentage of executors with respect to the whole cluster
+ *
  *   spark.dynamicAllocation.schedulerBacklogTimeout (M) -
  *     If there are backlogged tasks for this duration, add new executors
  *
@@ -92,6 +97,7 @@ private[spark] class ExecutorAllocationManager(
   private val minNumExecutors = conf.get(DYN_ALLOCATION_MIN_EXECUTORS)
   private val maxNumExecutors = conf.get(DYN_ALLOCATION_MAX_EXECUTORS)
   private val initialNumExecutors = Utils.getDynamicAllocationInitialExecutors(conf)
+  private val maxPercExecutors = conf.get(DYN_ALLOCATION_MAX_PERC_EXECUTORS)
 
   // How long there must be backlogged tasks for before an addition is triggered (seconds)
   private val schedulerBacklogTimeoutS = conf.getTimeAsSeconds(
@@ -183,6 +189,10 @@ private[spark] class ExecutorAllocationManager(
     if (minNumExecutors > maxNumExecutors) {
       throw new SparkException(s"spark.dynamicAllocation.minExecutors ($minNumExecutors) must " +
         s"be less than or equal to spark.dynamicAllocation.maxExecutors ($maxNumExecutors)!")
+    }
+    if (maxPercExecutors <= 0.0 || maxPercExecutors > 1.0) {
+      throw new SparkException(s"spark.dynamicAllocation.maxPercExecutors ($maxPercExecutors) " +
+        s"must be a real number between 0.0 (not included) and 1.0 (included)")
     }
     if (schedulerBacklogTimeoutS <= 0) {
       throw new SparkException("spark.dynamicAllocation.schedulerBacklogTimeout must be > 0!")
@@ -328,6 +338,7 @@ private[spark] class ExecutorAllocationManager(
       }
       numExecutorsTarget - oldNumExecutorsTarget
     } else if (addTime != NOT_SET && now >= addTime) {
+      // Time to request new executors
       val delta = addExecutors(maxNeeded)
       logDebug(s"Starting timer to add more executors (to " +
         s"expire in $sustainedSchedulerBacklogTimeoutS seconds)")
@@ -340,18 +351,28 @@ private[spark] class ExecutorAllocationManager(
 
   /**
    * Request a number of executors from the cluster manager.
-   * If the cap on the number of executors is reached, give up and reset the
-   * number of executors to add next round instead of continuing to double it.
+   * If one of the caps on the number of executors or on the percentage of nodes of the whole
+   * cluster is reached, give up and reset the number of executors to add next round instead of
+   * continuing to double it.
    *
    * @param maxNumExecutorsNeeded the maximum number of executors all currently running or pending
    *                              tasks could fill
    * @return the number of additional executors actually requested.
    */
   private def addExecutors(maxNumExecutorsNeeded: Int): Int = {
-    // Do not request more executors if it would put our target over the upper bound
+    val percExecutorsTarget =
+      if (executorIds.isEmpty) 0.0 else numExecutorsTarget / executorIds.size
+
+    // Do not request more executors if it would put our target over the upper bounds
     if (numExecutorsTarget >= maxNumExecutors) {
       logDebug(s"Not adding executors because our current target total " +
         s"is already $numExecutorsTarget (limit $maxNumExecutors)")
+      numExecutorsToAdd = 1
+      return 0
+    } else if (percExecutorsTarget >= maxPercExecutors) {
+      logDebug(s"Not adding executors because our current target percentage is already " +
+        s"${NumberFormat.getPercentInstance.format(percExecutorsTarget)} " +
+        s"(percentage limit ${NumberFormat.getPercentInstance.format(maxPercExecutors)})")
       numExecutorsToAdd = 1
       return 0
     }
