@@ -84,10 +84,10 @@ private[deploy] class Worker(
     val randomNumberGenerator = new Random(UUID.randomUUID.getMostSignificantBits)
     randomNumberGenerator.nextDouble + FUZZ_MULTIPLIER_INTERVAL_LOWER_BOUND
   }
-  private val INITIAL_REGISTRATION_RETRY_INTERVAL_SECONDS = (math.round(10 *
-    REGISTRATION_RETRY_FUZZ_MULTIPLIER))
-  private val PROLONGED_REGISTRATION_RETRY_INTERVAL_SECONDS = (math.round(60
-    * REGISTRATION_RETRY_FUZZ_MULTIPLIER))
+  private val INITIAL_REGISTRATION_RETRY_INTERVAL_SECONDS =
+    math.round(10 * REGISTRATION_RETRY_FUZZ_MULTIPLIER)
+  private val PROLONGED_REGISTRATION_RETRY_INTERVAL_SECONDS =
+    math.round(60 * REGISTRATION_RETRY_FUZZ_MULTIPLIER)
 
   private val CLEANUP_ENABLED = conf.getBoolean("spark.worker.cleanup.enabled", false)
   // How often worker will clean up old app folders
@@ -111,10 +111,10 @@ private[deploy] class Worker(
       assert(sys.props.contains("spark.test.home"), "spark.test.home is not set!")
       new File(sys.props("spark.test.home"))
     } else {
-      new File(sys.env.get("SPARK_HOME").getOrElse("."))
+      new File(sys.env.getOrElse("SPARK_HOME", "."))
     }
 
-  var workDir: File = null
+  var workDir: File = _
   val finishedExecutors = new LinkedHashMap[String, ExecutorRunner]
   val drivers = new HashMap[String, DriverRunner]
   val executors = new HashMap[String, ExecutorRunner]
@@ -164,7 +164,7 @@ private[deploy] class Worker(
       // This sporadically fails - not sure why ... !workDir.exists() && !workDir.mkdirs()
       // So attempting to create and then check if directory was created or not.
       workDir.mkdirs()
-      if ( !workDir.exists() || !workDir.isDirectory) {
+      if (!workDir.exists() || !workDir.isDirectory) {
         logError("Failed to create work directory " + workDir)
         System.exit(1)
       }
@@ -451,7 +451,7 @@ private[deploy] class Worker(
               try {
                 val appDir = Utils.createDirectory(dir, namePrefix = "executor")
                 Utils.chmod700(appDir)
-                Some(appDir.getAbsolutePath())
+                Some(appDir.getAbsolutePath)
               } catch {
                 case e: IOException =>
                   logWarning(s"${e.getMessage}. Ignoring this directory.")

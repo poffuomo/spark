@@ -253,6 +253,7 @@ private[deploy] class Master(
             + workerAddress))
         }
       }
+      logDebug(s"Used / Total executor cores: $getNumExistingCores / $getNumUsedCores")
 
     case RegisterApplication(description, driver) =>
       // TODO Prevent repeated registrations from some driver
@@ -294,7 +295,7 @@ private[deploy] class Master(
             }
             exec.worker.removeExecutor(exec)
 
-            val normalExit = exitStatus == Some(0)
+            val normalExit = exitStatus.contains(0)
             // Only retry certain number of times so we don't go into an infinite loop.
             // Important note: this code path is not exercised by tests, so be very careful when
             // changing this `if` condition.
@@ -345,7 +346,6 @@ private[deploy] class Master(
         case None =>
           logWarning("Master change ack from unknown app: " + appId)
       }
-
       if (canCompleteRecovery) { completeRecovery() }
 
     case WorkerSchedulerStateResponse(workerId, executors, driverIds) =>
@@ -356,7 +356,7 @@ private[deploy] class Master(
 
           val validExecutors = executors.filter(exec => idToApp.get(exec.appId).isDefined)
           for (exec <- validExecutors) {
-            val app = idToApp.get(exec.appId).get
+            val app = idToApp(exec.appId)
             val execInfo = app.addExecutor(worker, exec.cores, Some(exec.execId))
             worker.addExecutor(execInfo)
             execInfo.copyState(exec)
@@ -372,7 +372,6 @@ private[deploy] class Master(
         case None =>
           logWarning("Scheduler state from unknown worker: " + workerId)
       }
-
       if (canCompleteRecovery) { completeRecovery() }
 
     case WorkerLatestState(workerId, executors, driverIds) =>
@@ -657,14 +656,14 @@ private[deploy] class Master(
     for (app <- waitingApps if app.coresLeft > 0) {
       val coresPerExecutor: Option[Int] = app.desc.coresPerExecutor
       // Filter out workers that don't have enough resources to launch an executor
-      val usableWorkers = workers.toArray.filter(_.state == WorkerState.ALIVE)
+      val usableWorkers = workers.toArray.filter(_.isAlive())
         .filter(worker => worker.memoryFree >= app.desc.memoryPerExecutorMB &&
           worker.coresFree >= coresPerExecutor.getOrElse(1))
         .sortBy(_.coresFree).reverse
       val assignedCores = scheduleExecutorsOnWorkers(app, usableWorkers, spreadOutApps)
 
       // Now that we've decided how many cores to allocate on each worker, let's allocate them
-      for (pos <- 0 until usableWorkers.length if assignedCores(pos) > 0) {
+      for (pos <- usableWorkers.indices if assignedCores(pos) > 0) {
         allocateWorkerResourceToExecutors(
           app, assignedCores(pos), coresPerExecutor, usableWorkers(pos))
       }
@@ -704,7 +703,7 @@ private[deploy] class Master(
       return
     }
     // Drivers take strict precedence over executors
-    val shuffledAliveWorkers = Random.shuffle(workers.toSeq.filter(_.state == WorkerState.ALIVE))
+    val shuffledAliveWorkers = Random.shuffle(workers.toSeq.filter(_.isAlive()))
     val numWorkersAlive = shuffledAliveWorkers.size
     var curPos = 0
     for (driver <- waitingDrivers.toList) { // iterate over a copy of waitingDrivers
@@ -754,7 +753,7 @@ private[deploy] class Master(
         removeWorker(oldWorker)
       } else {
         logInfo("Attempted to re-register worker at same address: " + workerAddress)
-        return false
+        false
       }
     }
 
@@ -1015,6 +1014,26 @@ private[deploy] class Master(
       case None =>
         logWarning(s"Asked to remove unknown driver: $driverId")
     }
+  }
+
+  /**
+    * Counts how many cores the Master can access, as a sum of all the cores of all the
+    * registered Workers.
+    *
+    * @return the total number of cores of alive workers
+    */
+  def getNumExistingCores: Int = {
+    workers.toSeq.filter(_.isAlive()).map(_.cores).sum
+  }
+
+  /**
+    * Counts how many cores between the ones belonging to registered Workers are currently being
+    * used.
+    *
+    * @return the number of cores of alive workers that are currently used
+    */
+  def getNumUsedCores: Int = {
+    workers.toSeq.filter(_.isAlive()).map(_.coresUsed).sum
   }
 }
 

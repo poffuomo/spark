@@ -69,7 +69,6 @@ import org.apache.spark.util.{Clock, SystemClock, ThreadUtils, Utils}
  *   spark.dynamicAllocation.minExecutors - Lower bound on the number of executors
  *   spark.dynamicAllocation.maxExecutors - Upper bound on the number of executors
  *   spark.dynamicAllocation.initialExecutors - Number of executors to start with
- *
  *   spark.dynamicAllocation.maxPercExecutors -
  *     Upper bound on the percentage of executors with respect to the whole cluster
  *
@@ -86,7 +85,8 @@ import org.apache.spark.util.{Clock, SystemClock, ThreadUtils, Utils}
 private[spark] class ExecutorAllocationManager(
     client: ExecutorAllocationClient,
     listenerBus: LiveListenerBus,
-    conf: SparkConf)
+    conf: SparkConf,
+    totalNumExecutors: Int)
   extends Logging {
 
   allocationManager =>
@@ -206,7 +206,7 @@ private[spark] class ExecutorAllocationManager(
     }
     // Require external shuffle service for dynamic allocation
     // Otherwise, we may lose shuffle files when killing executors
-    if (!conf.getBoolean("spark.shuffle.service.enabled", false) && !testing) {
+    if (!conf.getBoolean("spark.shuffle.service.enabled", false) && !testing && false) {
       throw new SparkException("Dynamic allocation of executors requires the external " +
         "shuffle service. You may enable this through spark.shuffle.service.enabled.")
     }
@@ -305,6 +305,22 @@ private[spark] class ExecutorAllocationManager(
   }
 
   /**
+    * Compute the ratio of the given number of executors over the total number of Spark executors.
+    *
+    * @param numExecutors the number of executors we want to know the ratio about.
+    * @return the ratio between the number of executors assigned to the Spark application over
+    *         the total number of Spark executors. It will be a value between 0.0 and 1.0 included.
+    */
+  private def getRatioOfExecutors(numExecutors: Int): Double = {
+    if (executorIds.nonEmpty) {
+      numExecutors / totalNumExecutors
+    } else {
+      // e.g. no existing executors in the cluster yet, or no allocated executors yet
+      if (numExecutors == 0) 0.0 else 1.0
+    }
+  }
+
+  /**
    * Updates our target number of executors and syncs the result with the cluster manager.
    *
    * Check to see whether our existing allocation and the requests we've made previously exceed our
@@ -317,7 +333,7 @@ private[spark] class ExecutorAllocationManager(
    * @return the delta in the target number of executors.
    */
   private def updateAndSyncNumExecutorsTarget(now: Long): Int = synchronized {
-    val maxNeeded = maxNumExecutorsNeeded
+    val maxNeeded = maxNumExecutorsNeeded()
 
     if (initializing) {
       // Do not change our target while we are still initializing,
@@ -360,8 +376,10 @@ private[spark] class ExecutorAllocationManager(
    * @return the number of additional executors actually requested.
    */
   private def addExecutors(maxNumExecutorsNeeded: Int): Int = {
-    val percExecutorsTarget =
-      if (executorIds.isEmpty) 0.0 else numExecutorsTarget / executorIds.size
+    logInfo(s"Total number of executor, as received from SparkContext: $totalNumExecutors")
+    val percExecutorsTarget = getRatioOfExecutors(numExecutorsTarget)
+    logInfo(s"Wanted executor usage ratio: $percExecutorsTarget " +
+      s"($numExecutorsTarget out of $totalNumExecutors)")
 
     // Do not request more executors if it would put our target over the upper bounds
     if (numExecutorsTarget >= maxNumExecutors) {
@@ -369,12 +387,12 @@ private[spark] class ExecutorAllocationManager(
         s"is already $numExecutorsTarget (limit $maxNumExecutors)")
       numExecutorsToAdd = 1
       return 0
-    } else if (percExecutorsTarget >= maxPercExecutors) {
-      logDebug(s"Not adding executors because our current target percentage is already " +
-        s"${NumberFormat.getPercentInstance.format(percExecutorsTarget)} " +
-        s"(percentage limit ${NumberFormat.getPercentInstance.format(maxPercExecutors)})")
-      numExecutorsToAdd = 1
-      return 0
+//    } else if (percExecutorsTarget >= maxPercExecutors) {
+//      logInfo(s"Not adding executors because our current target percentage of the cluster " +
+//        s"is already ${NumberFormat.getPercentInstance.format(percExecutorsTarget)} " +
+//        s"(percentage limit ${NumberFormat.getPercentInstance.format(maxPercExecutors)})")
+//      numExecutorsToAdd = 1
+//      return 0
     }
 
     val oldNumExecutorsTarget = numExecutorsTarget
@@ -387,8 +405,20 @@ private[spark] class ExecutorAllocationManager(
     numExecutorsTarget = math.min(numExecutorsTarget, maxNumExecutorsNeeded)
     // Ensure that our target fits within configured bounds:
     numExecutorsTarget = math.max(math.min(numExecutorsTarget, maxNumExecutors), minNumExecutors)
+    // Ensure that our target doesn't exceed the maximum allowed percentage of nodes in the cluster
+    // (e.g. 20 nodes in the cluster, maximum allowed percentage 50% => don't request more than
+    // 10 nodes)
+    logInfo("Target before: %d".format(numExecutorsTarget))
+//    if (totalNumExecutors > 0) {
+//      numExecutorsTarget =
+//        math.min(numExecutorsTarget, (totalNumExecutors * maxPercExecutors.round).toInt)
+//    }
+    logInfo(s"$maxPercExecutors ${maxPercExecutors.round} " +
+      s"${totalNumExecutors * maxPercExecutors.round} " +
+      s"${(totalNumExecutors * maxPercExecutors.round).toInt}")
 
     val delta = numExecutorsTarget - oldNumExecutorsTarget
+    logInfo("Target after: %d, delta: %d".format(numExecutorsTarget, delta))
 
     // If our target has not changed, do not send a message
     // to the cluster manager and reset our exponential growth
@@ -399,6 +429,7 @@ private[spark] class ExecutorAllocationManager(
 
     val addRequestAcknowledged = testing ||
       client.requestTotalExecutors(numExecutorsTarget, localityAwareTasks, hostToLocalTaskCount)
+    // TODO percentage of executors
     if (addRequestAcknowledged) {
       val executorsString = "executor" + { if (delta > 1) "s" else "" }
       logInfo(s"Requesting $delta new $executorsString because tasks are backlogged" +
@@ -625,7 +656,7 @@ private[spark] class ExecutorAllocationManager(
         var numTasksPending = 0
         val hostToLocalTaskCountPerStage = new mutable.HashMap[String, Int]()
         stageSubmitted.stageInfo.taskLocalityPreferences.foreach { locality =>
-          if (!locality.isEmpty) {
+          if (locality.nonEmpty) {
             numTasksPending += 1
             locality.foreach { location =>
               val count = hostToLocalTaskCountPerStage.getOrElse(location.host, 0) + 1

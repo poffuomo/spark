@@ -144,8 +144,12 @@ private[spark] class StandaloneSchedulerBackend(
     }
   }
 
-  override def executorAdded(fullId: String, workerId: String, hostPort: String, cores: Int,
-    memory: Int) {
+  override def executorAdded(
+      fullId: String,
+      workerId: String,
+      hostPort: String,
+      cores: Int,
+      memory: Int) {
     logInfo("Granted executor ID %s on hostPort %s with %d cores, %s RAM".format(
       fullId, hostPort, cores, Utils.megabytesToString(memory)))
   }
@@ -167,7 +171,7 @@ private[spark] class StandaloneSchedulerBackend(
   override def applicationId(): String =
     Option(appId).getOrElse {
       logWarning("Application ID is not initialized yet.")
-      super.applicationId
+      super.applicationId()
     }
 
   /**

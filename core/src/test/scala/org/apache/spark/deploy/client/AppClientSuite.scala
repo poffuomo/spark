@@ -65,7 +65,7 @@ class AppClientSuite
     workers = makeWorkers(10, 2048)
     // Wait until all workers register with master successfully
     eventually(timeout(60.seconds), interval(10.millis)) {
-      assert(getMasterState.workers.size === numWorkers)
+      assert(getMasterState.workers.length === numWorkers)
     }
   }
 
@@ -151,14 +151,14 @@ class AppClientSuite
       .set("spark.executor.memory", "256m")
   }
 
-  /** Make a master to which our application will send executor requests. */
+  /** Make a Master to which our application will send executor requests. */
   private def makeMaster(): Master = {
     val master = new Master(masterRpcEnv, masterRpcEnv.address, 0, securityManager, conf)
     masterRpcEnv.setupEndpoint(Master.ENDPOINT_NAME, master)
     master
   }
 
-  /** Make a few workers that talk to our master. */
+  /** Make a few Workers that talk to our Master. */
   private def makeWorkers(cores: Int, memory: Int): Seq[Worker] = {
     (0 until numWorkers).map { i =>
       val rpcEnv = workerRpcEnvs(i)
