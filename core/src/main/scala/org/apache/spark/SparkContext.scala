@@ -547,8 +547,7 @@ class SparkContext(config: SparkConf) extends Logging {
             Some(new ExecutorAllocationManager(
               schedulerBackend.asInstanceOf[ExecutorAllocationClient],
               listenerBus,
-              _conf,
-              getExecutorStorageStatus.count(_ != "driver"))) // TODO (poffuomo): remove
+              _conf))
           case _ =>
             None
         }
