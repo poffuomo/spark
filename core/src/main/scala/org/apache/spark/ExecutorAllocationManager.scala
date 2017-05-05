@@ -85,8 +85,7 @@ import org.apache.spark.util.{Clock, SystemClock, ThreadUtils, Utils}
 private[spark] class ExecutorAllocationManager(
     client: ExecutorAllocationClient,
     listenerBus: LiveListenerBus,
-    conf: SparkConf,
-    totalNumExecutors: Int) // TODO remove if unnecessary
+    conf: SparkConf)
   extends Logging {
 
   allocationManager =>
@@ -305,23 +304,6 @@ private[spark] class ExecutorAllocationManager(
   }
 
   /**
-    * Compute the ratio of the given number of executors over the total number of Spark executors.
-    * TODO (poffuomo): remove if useless
-    *
-    * @param numExecutors the number of executors we want to know the ratio about.
-    * @return the ratio between the number of executors assigned to the Spark application over
-    *         the total number of Spark executors. It will be a value between 0.0 and 1.0 included.
-    */
-  private def getRatioOfExecutors(numExecutors: Int): Double = {
-    if (executorIds.nonEmpty) {
-      numExecutors / totalNumExecutors
-    } else {
-      // e.g. no existing executors in the cluster yet, or no allocated executors yet
-      if (numExecutors == 0) 0.0 else 1.0
-    }
-  }
-
-  /**
    * Updates our target number of executors and syncs the result with the cluster manager.
    *
    * Check to see whether our existing allocation and the requests we've made previously exceed our
@@ -377,25 +359,12 @@ private[spark] class ExecutorAllocationManager(
    * @return the number of additional executors actually requested.
    */
   private def addExecutors(maxNumExecutorsNeeded: Int): Int = {
-    logInfo(s"Total number of executor, as received from SparkContext: $totalNumExecutors")
-    val percExecutorsTarget = getRatioOfExecutors(numExecutorsTarget)
-    logInfo(s"Wanted executor usage ratio: $percExecutorsTarget " +
-      s"($numExecutorsTarget out of $totalNumExecutors)")
-    // TODO (poffuomo): remove
-
     // Do not request more executors if it would put our target over the upper bounds
     if (numExecutorsTarget >= maxNumExecutors) {
       logDebug(s"Not adding executors because our current target total " +
         s"is already $numExecutorsTarget (limit $maxNumExecutors)")
       numExecutorsToAdd = 1
       return 0
-//    } else if (percExecutorsTarget >= maxPercExecutors) {
-//      logInfo(s"Not adding executors because our current target percentage of the cluster " +
-//        s"is already ${NumberFormat.getPercentInstance.format(percExecutorsTarget)} " +
-//        s"(percentage limit ${NumberFormat.getPercentInstance.format(maxPercExecutors)})")
-//      numExecutorsToAdd = 1
-//      return 0
-      // TODO (poffuomo): remove
     }
 
     val oldNumExecutorsTarget = numExecutorsTarget
@@ -408,14 +377,6 @@ private[spark] class ExecutorAllocationManager(
     numExecutorsTarget = math.min(numExecutorsTarget, maxNumExecutorsNeeded)
     // Ensure that our target fits within configured bounds:
     numExecutorsTarget = math.max(math.min(numExecutorsTarget, maxNumExecutors), minNumExecutors)
-    // Ensure that our target doesn't exceed the maximum allowed percentage of nodes in the cluster
-    // (e.g. 20 nodes in the cluster, maximum allowed percentage 50% => don't request more than
-    // 10 nodes)
-    // TODO (poffuomo): remove if useless
-//    if (totalNumExecutors > 0) {
-//      numExecutorsTarget =
-//        math.min(numExecutorsTarget, (totalNumExecutors * maxPercExecutors.round).toInt)
-//    }
 
     val delta = numExecutorsTarget - oldNumExecutorsTarget
 
@@ -428,7 +389,6 @@ private[spark] class ExecutorAllocationManager(
 
     val addRequestAcknowledged = testing ||
       client.requestTotalExecutors(numExecutorsTarget, localityAwareTasks, hostToLocalTaskCount)
-    // TODO (poffuomo): add percentage of executors as an additional parameter
     if (addRequestAcknowledged) {
       val executorsString = "executor" + { if (delta > 1) "s" else "" }
       logInfo(s"Requesting $delta new $executorsString because tasks are backlogged" +
