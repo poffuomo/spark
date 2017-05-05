@@ -18,6 +18,7 @@
 package org.apache.spark.sql.execution.datasources.jdbc
 
 import java.sql.{Connection, Driver, DriverManager, PreparedStatement, ResultSet, ResultSetMetaData, SQLException}
+import java.util.Locale
 
 import scala.collection.JavaConverters._
 import scala.util.Try
@@ -542,7 +543,7 @@ object JdbcUtils extends Logging {
     case ArrayType(et, _) =>
       // remove type length parameters from end of type name
       val typeName = getJdbcType(et, dialect).databaseTypeDefinition
-        .toLowerCase.split("\\(")(0)
+        .toLowerCase(Locale.ROOT).split("\\(")(0)
       (stmt: PreparedStatement, row: Row, pos: Int) =>
         val array = conn.createArrayOf(
           typeName,
@@ -651,8 +652,17 @@ object JdbcUtils extends Logging {
       case e: SQLException =>
         val cause = e.getNextException
         if (cause != null && e.getCause != cause) {
+          // If there is no cause already, set 'next exception' as cause. If cause is null,
+          // it *may* be because no cause was set yet
           if (e.getCause == null) {
-            e.initCause(cause)
+            try {
+              e.initCause(cause)
+            } catch {
+              // Or it may be null because the cause *was* explicitly initialized, to *null*,
+              // in which case this fails. There is no other way to detect it.
+              // addSuppressed in this case as well.
+              case _: IllegalStateException => e.addSuppressed(cause)
+            }
           } else {
             e.addSuppressed(cause)
           }

@@ -21,6 +21,7 @@ import java.sql.{Date, Timestamp}
 import org.apache.spark.sql.catalyst.FunctionIdentifier
 import org.apache.spark.sql.catalyst.analysis.{UnresolvedAttribute, _}
 import org.apache.spark.sql.catalyst.expressions._
+import org.apache.spark.sql.catalyst.expressions.aggregate.{First, Last}
 import org.apache.spark.sql.catalyst.plans.PlanTest
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.CalendarInterval
@@ -164,6 +165,11 @@ class ExpressionParserSuite extends PlanTest {
     assertEqual("a is not null", 'a.isNotNull)
     assertEqual("a = b is null", ('a === 'b).isNull)
     assertEqual("a = b is not null", ('a === 'b).isNotNull)
+  }
+
+  test("is distinct expressions") {
+    assertEqual("a is distinct from b", !('a <=> 'b))
+    assertEqual("a is not distinct from b", 'a <=> 'b)
   }
 
   test("binary arithmetic expressions") {
@@ -548,5 +554,12 @@ class ExpressionParserSuite extends PlanTest {
     // Function identifier contains countious backticks should be treated correctly.
     val complexName2 = FunctionIdentifier("ba``r", Some("fo``o"))
     assertEqual(complexName2.quotedString, UnresolvedAttribute("fo``o.ba``r"))
+  }
+
+  test("SPARK-19526 Support ignore nulls keywords for first and last") {
+    assertEqual("first(a ignore nulls)", First('a, Literal(true)).toAggregateExpression())
+    assertEqual("first(a)", First('a, Literal(false)).toAggregateExpression())
+    assertEqual("last(a ignore nulls)", Last('a, Literal(true)).toAggregateExpression())
+    assertEqual("last(a)", Last('a, Literal(false)).toAggregateExpression())
   }
 }
