@@ -86,7 +86,7 @@ private[spark] class ExecutorAllocationManager(
     client: ExecutorAllocationClient,
     listenerBus: LiveListenerBus,
     conf: SparkConf,
-    totalNumExecutors: Int)
+    totalNumExecutors: Int) // TODO remove if unnecessary
   extends Logging {
 
   allocationManager =>
@@ -204,12 +204,12 @@ private[spark] class ExecutorAllocationManager(
     if (executorIdleTimeoutS <= 0) {
       throw new SparkException("spark.dynamicAllocation.executorIdleTimeout must be > 0!")
     }
-    // Require external shuffle service for dynamic allocation
-    // Otherwise, we may lose shuffle files when killing executors
+    // Don't require external shuffle service for dynamic allocation even if we may lose
+    // shuffle files when killing executors
     if (!conf.getBoolean("spark.shuffle.service.enabled", false) && !testing && false) {
       throw new SparkException("Dynamic allocation of executors requires the external " +
         "shuffle service. You may enable this through spark.shuffle.service.enabled.")
-    }
+    } // TODO (poffuomo): simplify check or just log something instead of raising an exception
     if (tasksPerExecutor == 0) {
       throw new SparkException("spark.executor.cores must not be less than spark.task.cpus.")
     }
@@ -306,6 +306,7 @@ private[spark] class ExecutorAllocationManager(
 
   /**
     * Compute the ratio of the given number of executors over the total number of Spark executors.
+    * TODO (poffuomo): remove if useless
     *
     * @param numExecutors the number of executors we want to know the ratio about.
     * @return the ratio between the number of executors assigned to the Spark application over
@@ -354,7 +355,7 @@ private[spark] class ExecutorAllocationManager(
       }
       numExecutorsTarget - oldNumExecutorsTarget
     } else if (addTime != NOT_SET && now >= addTime) {
-      // Time to request new executors
+      // Time to actually request new executors with 'addExecutors()'
       val delta = addExecutors(maxNeeded)
       logDebug(s"Starting timer to add more executors (to " +
         s"expire in $sustainedSchedulerBacklogTimeoutS seconds)")
@@ -380,6 +381,7 @@ private[spark] class ExecutorAllocationManager(
     val percExecutorsTarget = getRatioOfExecutors(numExecutorsTarget)
     logInfo(s"Wanted executor usage ratio: $percExecutorsTarget " +
       s"($numExecutorsTarget out of $totalNumExecutors)")
+    // TODO (poffuomo): remove
 
     // Do not request more executors if it would put our target over the upper bounds
     if (numExecutorsTarget >= maxNumExecutors) {
@@ -393,6 +395,7 @@ private[spark] class ExecutorAllocationManager(
 //        s"(percentage limit ${NumberFormat.getPercentInstance.format(maxPercExecutors)})")
 //      numExecutorsToAdd = 1
 //      return 0
+      // TODO (poffuomo): remove
     }
 
     val oldNumExecutorsTarget = numExecutorsTarget
@@ -408,17 +411,13 @@ private[spark] class ExecutorAllocationManager(
     // Ensure that our target doesn't exceed the maximum allowed percentage of nodes in the cluster
     // (e.g. 20 nodes in the cluster, maximum allowed percentage 50% => don't request more than
     // 10 nodes)
-    logInfo("Target before: %d".format(numExecutorsTarget))
+    // TODO (poffuomo): remove if useless
 //    if (totalNumExecutors > 0) {
 //      numExecutorsTarget =
 //        math.min(numExecutorsTarget, (totalNumExecutors * maxPercExecutors.round).toInt)
 //    }
-    logInfo(s"$maxPercExecutors ${maxPercExecutors.round} " +
-      s"${totalNumExecutors * maxPercExecutors.round} " +
-      s"${(totalNumExecutors * maxPercExecutors.round).toInt}")
 
     val delta = numExecutorsTarget - oldNumExecutorsTarget
-    logInfo("Target after: %d, delta: %d".format(numExecutorsTarget, delta))
 
     // If our target has not changed, do not send a message
     // to the cluster manager and reset our exponential growth
@@ -429,7 +428,7 @@ private[spark] class ExecutorAllocationManager(
 
     val addRequestAcknowledged = testing ||
       client.requestTotalExecutors(numExecutorsTarget, localityAwareTasks, hostToLocalTaskCount)
-    // TODO percentage of executors
+    // TODO (poffuomo): add percentage of executors as an additional parameter
     if (addRequestAcknowledged) {
       val executorsString = "executor" + { if (delta > 1) "s" else "" }
       logInfo(s"Requesting $delta new $executorsString because tasks are backlogged" +
@@ -502,7 +501,7 @@ private[spark] class ExecutorAllocationManager(
    */
   private def removeExecutor(executorId: String): Boolean = synchronized {
     val executorsRemoved = removeExecutors(Seq(executorId))
-    executorsRemoved.nonEmpty && executorsRemoved(0) == executorId
+    executorsRemoved.nonEmpty && executorsRemoved.head == executorId
   }
 
   /**

@@ -66,6 +66,8 @@ import org.apache.spark.util._
  *
  * Only one SparkContext may be active per JVM.  You must `stop()` the active SparkContext before
  * creating a new one.  This limitation may eventually be removed; see SPARK-2243 for more details.
+ * FIXME not true: it is already possible to run more than one SparkContext in a single JVM by
+ * setting the property `spark.driver.allowMultipleContexts` to `true`.
  *
  * @param config a Spark Config object describing the application configuration. Any settings in
  *   this config overrides the default configs as well as system properties.
@@ -543,7 +545,10 @@ class SparkContext(config: SparkConf) extends Logging {
         schedulerBackend match {
           case b: ExecutorAllocationClient =>
             Some(new ExecutorAllocationManager(
-              schedulerBackend.asInstanceOf[ExecutorAllocationClient], listenerBus, _conf))
+              schedulerBackend.asInstanceOf[ExecutorAllocationClient],
+              listenerBus,
+              _conf,
+              getExecutorStorageStatus.count(_ != "driver"))) // TODO (poffuomo): remove
           case _ =>
             None
         }

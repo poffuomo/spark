@@ -47,7 +47,7 @@ private[spark] abstract class RpcEndpointRef(conf: SparkConf)
   def send(message: Any): Unit
 
   /**
-   * Send a message to the corresponding [[RpcEndpoint.receiveAndReply)]] and return a [[Future]] to
+   * Send a message to the corresponding [[RpcEndpoint.receiveAndReply]] and return a [[Future]] to
    * receive the reply within the specified timeout.
    *
    * This method only sends the message once and never retries.
@@ -55,7 +55,7 @@ private[spark] abstract class RpcEndpointRef(conf: SparkConf)
   def ask[T: ClassTag](message: Any, timeout: RpcTimeout): Future[T]
 
   /**
-   * Send a message to the corresponding [[RpcEndpoint.receiveAndReply)]] and return a [[Future]] to
+   * Send a message to the corresponding [[RpcEndpoint.receiveAndReply]] and return a [[Future]] to
    * receive the reply within a default timeout.
    *
    * This method only sends the message once and never retries.

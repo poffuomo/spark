@@ -17,7 +17,7 @@
 
 package org.apache.spark.deploy.master
 
-import java.text.SimpleDateFormat
+import java.text.{NumberFormat, SimpleDateFormat}
 import java.util.{Date, Locale}
 import java.util.concurrent.{ScheduledFuture, TimeUnit}
 
@@ -25,8 +25,7 @@ import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
 import scala.util.Random
 
 import org.apache.spark.{SecurityManager, SparkConf, SparkException}
-import org.apache.spark.deploy.{ApplicationDescription, DriverDescription,
-  ExecutorState, SparkHadoopUtil}
+import org.apache.spark.deploy.{ApplicationDescription, DriverDescription, ExecutorState, SparkHadoopUtil}
 import org.apache.spark.deploy.DeployMessages._
 import org.apache.spark.deploy.master.DriverState.DriverState
 import org.apache.spark.deploy.master.MasterMessages._
@@ -111,6 +110,7 @@ private[deploy] class Master(
   // As a temporary workaround before better ways of configuring memory, we allow users to set
   // a flag that will perform round-robin scheduling across the nodes (spreading out each app
   // among all the nodes) instead of trying to consolidate each app onto a small # of nodes.
+  // FIXME (poffuomo): "temporary" workaround for what?
   private val spreadOutApps = conf.getBoolean("spark.deploy.spreadOut", true)
 
   // Default maxCores for applications that don't specify it (i.e. pass Int.MaxValue)
@@ -273,14 +273,14 @@ private[deploy] class Master(
       val execOption = idToApp.get(appId).flatMap(app => app.executors.get(execId))
       execOption match {
         case Some(exec) =>
-          val appInfo = idToApp(appId)
+          val app = idToApp(appId)
           val oldState = exec.state
           exec.state = state
 
           if (state == ExecutorState.RUNNING) {
             assert(oldState == ExecutorState.LAUNCHING,
               s"executor $execId state transfer from $oldState to RUNNING is illegal")
-            appInfo.resetRetryCount()
+            app.resetRetryCount()
           }
 
           exec.application.driver.send(ExecutorUpdated(execId, state, message, exitStatus, false))
@@ -290,8 +290,8 @@ private[deploy] class Master(
             logInfo(s"Removing executor ${exec.fullId} because it is $state")
             // If an application has already finished, preserve its
             // state to display its information properly on the UI
-            if (!appInfo.isFinished) {
-              appInfo.removeExecutor(exec)
+            if (!app.isFinished) {
+              app.removeExecutor(exec)
             }
             exec.worker.removeExecutor(exec)
 
@@ -300,13 +300,13 @@ private[deploy] class Master(
             // Important note: this code path is not exercised by tests, so be very careful when
             // changing this `if` condition.
             if (!normalExit
-                && appInfo.incrementRetryCount() >= MAX_EXECUTOR_RETRIES
+                && app.incrementRetryCount() >= MAX_EXECUTOR_RETRIES
                 && MAX_EXECUTOR_RETRIES >= 0) { // < 0 disables this application-killing path
-              val execs = appInfo.executors.values
+              val execs = app.executors.values
               if (!execs.exists(_.state == ExecutorState.RUNNING)) {
-                logError(s"Application ${appInfo.desc.name} with ID ${appInfo.id} failed " +
-                  s"${appInfo.retryCount} times; removing it")
-                removeApplication(appInfo, ApplicationState.FAILED)
+                logError(s"Application ${app.desc.name} with ID ${app.id} failed " +
+                  s"${app.retryCount} times; removing it")
+                removeApplication(app, ApplicationState.FAILED)
               }
             }
           }
@@ -486,7 +486,10 @@ private[deploy] class Master(
       context.reply(BoundPortsResponse(address.port, webUi.boundPort, restServerBoundPort))
 
     case RequestExecutors(appId, requestedTotal) =>
-      context.reply(handleRequestExecutors(appId, requestedTotal))
+      context.reply(handleRequestExecutors(appId, requestedTotal, 1.0))
+
+    case RequestPercentageExecutors(appId, requestedTotal, requestedPercentage) =>
+      context.reply(handleRequestExecutors(appId, requestedTotal, requestedPercentage))
 
     case KillExecutors(appId, executorIds) =>
       val formattedExecutorIds = formatExecutorIds(executorIds)
@@ -564,7 +567,7 @@ private[deploy] class Master(
 
   /**
    * Schedule executors to be launched on the workers.
-   * Returns an array containing number of cores assigned to each worker.
+   * Returns an array containing the number of cores assigned to each worker.
    *
    * There are two modes of launching executors. The first attempts to spread out an application's
    * executors on as many workers as possible, while the second does the opposite (i.e. launch them
@@ -575,6 +578,9 @@ private[deploy] class Master(
    * multiple executors from the same application may be launched on the same worker if the worker
    * has enough cores and memory. Otherwise, each executor grabs all the cores available on the
    * worker by default, in which case only one executor may be launched on each worker.
+   * FIXME (poffuomo): more than one executor can run on the same worker just by configuring the
+   * option SPARK_WORKER_INSTANCES in `spark-env.sh`, even without specifying a fixed number of
+   * cores to be allocated to each executor.
    *
    * It is important to allocate coresPerExecutor on each worker at a time (instead of 1 core
    * at a time). Consider the following example: cluster has 4 workers with 16 cores each.
@@ -609,6 +615,11 @@ private[deploy] class Master(
         val underLimit = assignedExecutors.sum + app.executors.size < app.executorLimit
         keepScheduling && enoughCores && enoughMemory && underLimit
       } else {
+//        // We're adding cores to an existing executor, so no need to check memory. We still need
+//        // to check executor limits since the upper limit is dynamically updated for existing
+//        // executors so that the specified percentage limit will be satisfied.
+//        val underLimit = app.executors.size < app.executorLimit
+//        keepScheduling && enoughCores && underLimit
         // We're adding cores to an existing executor, so no need
         // to check memory and executor limits
         keepScheduling && enoughCores
@@ -874,13 +885,34 @@ private[deploy] class Master(
    * that there are workers with sufficient resources. If it is adjusted downwards, however,
    * we do not kill existing executors until we explicitly receive a kill request.
    *
+   * The executor limit also depends on the provided maximum allowed percentage of utilization of
+   * the cluster resources. That is, the Master may choose not to allocate less executors than were
+   * requested by the client if adding new executors would make the application overcome the maximum
+   * percentage of utilization of cores.
+   *
+   * @param appId Application unique identifier
+   * @param requestedTotal Number of executors requested to the Master
+   * @param requestedCoresPercentage Maximum allowed percentage of cores to be allocated to the
+    *                           application
    * @return whether the application has previously registered with this Master.
    */
-  private def handleRequestExecutors(appId: String, requestedTotal: Int): Boolean = {
+  private def handleRequestExecutors(
+      appId: String,
+      requestedTotal: Int,
+      requestedCoresPercentage: Double) = {
     idToApp.get(appId) match {
-      case Some(appInfo) =>
-        logInfo(s"Application $appId requested to set total executors to $requestedTotal.")
-        appInfo.executorLimit = requestedTotal
+      case Some(app) =>
+        logInfo(s"Application $appId requested to set total executors to $requestedTotal.\n" +
+          s"Current percentage of cores utilization: " +
+          s"${NumberFormat.getPercentInstance.format(getRatioUsedCores(app.coresGranted))}")
+
+        // Given the maximum allowed percentage and the total number of cores in the cluster,
+        // compute the maximum number of cores that can be allocated to the application
+        val coresLimit = (requestedCoresPercentage * getNumExistingCores).ceil.toInt
+        // Adjust the number of executors
+        app.executorLimit = requestedTotal
+        // Adjust the number of cores
+        app.requestedCores = math.min(app.requestedCores, coresLimit)
         schedule()
         true
       case None =>
@@ -900,12 +932,12 @@ private[deploy] class Master(
    */
   private def handleKillExecutors(appId: String, executorIds: Seq[Int]): Boolean = {
     idToApp.get(appId) match {
-      case Some(appInfo) =>
+      case Some(app) =>
         logInfo(s"Application $appId requests to kill executors: " + executorIds.mkString(", "))
-        val (known, unknown) = executorIds.partition(appInfo.executors.contains)
+        val (known, unknown) = executorIds.partition(app.executors.contains)
         known.foreach { executorId =>
-          val desc = appInfo.executors(executorId)
-          appInfo.removeExecutor(desc)
+          val desc = app.executors(executorId)
+          app.removeExecutor(desc)
           killExecutor(desc)
         }
         if (unknown.nonEmpty) {
@@ -1018,9 +1050,9 @@ private[deploy] class Master(
 
   /**
     * Counts how many cores the Master can access, as a sum of all the cores of all the
-    * registered Workers.
+    * registered Workers in the cluster.
     *
-    * @return the total number of cores of alive workers
+    * @return the total number of cores of alive Workers in the cluster
     */
   def getNumExistingCores: Int = {
     workers.toSeq.filter(_.isAlive()).map(_.cores).sum
@@ -1030,10 +1062,37 @@ private[deploy] class Master(
     * Counts how many cores between the ones belonging to registered Workers are currently being
     * used.
     *
-    * @return the number of cores of alive workers that are currently used
+    * @return the number of cores of alive Workers in the cluster that are currently used
     */
   def getNumUsedCores: Int = {
     workers.toSeq.filter(_.isAlive()).map(_.coresUsed).sum
+  }
+
+  /**
+    * Computes the percentage of executors utilization of the parameter `cores` with respect to
+    * the overall number of cores in the cluster.
+    *
+    * @param cores The number of cores for which to know the percentage of utilization with
+    *                  respect to the total number of cores in the cluster
+    * @return a real number between 0.0 and 1.0 representing the ratio between the parameter `cores`
+    *         and the total number of cores among all the available Workers
+    */
+  def getRatioUsedCores(cores: Int): Double = {
+    val totalCores = getNumExistingCores.toDouble
+    if (totalCores == 0.0) 0.0 else cores.toDouble / totalCores
+  }
+
+  /**
+    * Computes the percentage of cores utilization in the whole cluster.
+    *
+    * As an example, if there are 48 executors and 2 running applications, each one using 8
+    * executors, the overall ratio will be `16 / 48 = 0.3333`.
+    *
+    * @return a real number between 0.0 and 1.0 representing the percentage of total used cores
+    *         (i.e. among all the running applications)
+    */
+  def getRatioTotalUsedCores: Double = {
+    getRatioUsedCores(getNumUsedCores)
   }
 }
 

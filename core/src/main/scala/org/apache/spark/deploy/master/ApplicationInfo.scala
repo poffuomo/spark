@@ -97,7 +97,7 @@ private[spark] class ApplicationInfo(
     }
   }
 
-  private val requestedCores = desc.maxCores.getOrElse(defaultCores)
+  private[master] var requestedCores = desc.maxCores.getOrElse(defaultCores)
 
   private[master] def coresLeft: Int = requestedCores - coresGranted
 

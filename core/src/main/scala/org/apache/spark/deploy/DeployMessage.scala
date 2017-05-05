@@ -123,6 +123,8 @@ private[deploy] object DeployMessages {
 
   case class RequestExecutors(appId: String, requestedTotal: Int)
 
+  case class RequestPercentageExecutors(appId: String, requestedTotal: Int, maxPercentage: Double)
+
   case class KillExecutors(appId: String, executorIds: Seq[String])
 
   // Master to AppClient

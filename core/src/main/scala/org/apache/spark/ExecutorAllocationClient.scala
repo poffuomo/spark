@@ -22,7 +22,7 @@ package org.apache.spark
  * This is currently supported only in YARN mode.
  */
 private[spark] trait ExecutorAllocationClient {
-
+// FIXME not true that is only available in YARN mode!
 
   /** Get the list of currently active executors */
   private[spark] def getExecutorIds(): Seq[String]
