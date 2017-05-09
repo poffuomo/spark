@@ -486,7 +486,7 @@ private[deploy] class Master(
       context.reply(BoundPortsResponse(address.port, webUi.boundPort, restServerBoundPort))
 
     case RequestExecutors(appId, requestedTotal) =>
-      context.reply(handleRequestExecutors(appId, requestedTotal, 1.0))
+      context.reply(handleRequestExecutors(appId, requestedTotal, 0.5)) // TODO poffuomo: 1.0
 
     case RequestPercentageExecutors(appId, requestedTotal, requestedPercentage) =>
       context.reply(handleRequestExecutors(appId, requestedTotal, requestedPercentage))
@@ -615,11 +615,6 @@ private[deploy] class Master(
         val underLimit = assignedExecutors.sum + app.executors.size < app.executorLimit
         keepScheduling && enoughCores && enoughMemory && underLimit
       } else {
-//        // We're adding cores to an existing executor, so no need to check memory. We still need
-//        // to check executor limits since the upper limit is dynamically updated for existing
-//        // executors so that the specified percentage limit will be satisfied.
-//        val underLimit = app.executors.size < app.executorLimit
-//        keepScheduling && enoughCores && underLimit
         // We're adding cores to an existing executor, so no need
         // to check memory and executor limits
         keepScheduling && enoughCores
@@ -659,7 +654,7 @@ private[deploy] class Master(
   }
 
   /**
-   * Schedule and launch executors on workers
+   * Schedule and launch executors on workers.
    */
   private def startExecutorsOnWorkers(): Unit = {
     // Right now this is a very simple FIFO scheduler. We keep trying to fit in the first app
@@ -713,6 +708,7 @@ private[deploy] class Master(
     if (state != RecoveryState.ALIVE) {
       return
     }
+
     // Drivers take strict precedence over executors
     val shuffledAliveWorkers = Random.shuffle(workers.toSeq.filter(_.isAlive()))
     val numWorkersAlive = shuffledAliveWorkers.size
@@ -734,6 +730,7 @@ private[deploy] class Master(
         curPos = (curPos + 1) % numWorkersAlive
       }
     }
+
     startExecutorsOnWorkers()
   }
 
@@ -906,19 +903,36 @@ private[deploy] class Master(
           s"Current percentage of cores utilization: " +
           s"${NumberFormat.getPercentInstance.format(getRatioUsedCores(app.coresGranted))}")
 
-        // Given the maximum allowed percentage and the total number of cores in the cluster,
-        // compute the maximum number of cores that can be allocated to the application
-        val coresLimit = (requestedCoresPercentage * getNumExistingCores).ceil.toInt
         // Adjust the number of executors
         app.executorLimit = requestedTotal
         // Adjust the number of cores
-        app.requestedCores = math.min(app.requestedCores, coresLimit)
+        app.requestedCores = getCoresLimit(app, requestedCoresPercentage)
+
         schedule()
         true
       case None =>
         logWarning(s"Unknown application $appId requested $requestedTotal total executors.")
         false
     }
+  }
+
+  /**
+    * Computes the maximum allowed number of cores (i.e. computation units) that can be allocated
+    * to the Spark application provied as a parameter.
+    * The number of allowed cores is computed as a percentage of the overall number of cores in the
+    * cluster, while the required maximum percentage is also a parameter of the method.
+    *
+    * Note that the unit of allocation here is the core, not the executor.
+    *
+    * @param app Application for which to update the limit on the number of cores to allocate
+    * @param requestedCoresPercentage Value between 0.0 and 1.0 included referring to the maximum
+    *                                 allowed percentage of utilization of the cluster's total
+    *                                 number of cores
+    * @return The maximum number of cores that can be allocated to the application given the
+    *         allowed maximum percentage.
+    */
+  private def getCoresLimit(app: ApplicationInfo, requestedCoresPercentage: Double): Int = {
+    (requestedCoresPercentage * getNumExistingCores).ceil.toInt
   }
 
   /**
