@@ -69,8 +69,6 @@ import org.apache.spark.util.{Clock, SystemClock, ThreadUtils, Utils}
  *   spark.dynamicAllocation.minExecutors - Lower bound on the number of executors
  *   spark.dynamicAllocation.maxExecutors - Upper bound on the number of executors
  *   spark.dynamicAllocation.initialExecutors - Number of executors to start with
- *   spark.dynamicAllocation.maxPercExecutors -
- *     Upper bound on the percentage of executors with respect to the whole cluster
  *
  *   spark.dynamicAllocation.schedulerBacklogTimeout (M) -
  *     If there are backlogged tasks for this duration, add new executors
@@ -96,8 +94,6 @@ private[spark] class ExecutorAllocationManager(
   private val minNumExecutors = conf.get(DYN_ALLOCATION_MIN_EXECUTORS)
   private val maxNumExecutors = conf.get(DYN_ALLOCATION_MAX_EXECUTORS)
   private val initialNumExecutors = Utils.getDynamicAllocationInitialExecutors(conf)
-  private val maxPercExecutors = conf.get(DYN_ALLOCATION_MAX_PERC_EXECUTORS)
-  // FIXME (poffuomo): check if used (search also "percentage")
 
   // How long there must be backlogged tasks for before an addition is triggered (seconds)
   private val schedulerBacklogTimeoutS = conf.getTimeAsSeconds(
@@ -190,10 +186,6 @@ private[spark] class ExecutorAllocationManager(
       throw new SparkException(s"spark.dynamicAllocation.minExecutors ($minNumExecutors) must " +
         s"be less than or equal to spark.dynamicAllocation.maxExecutors ($maxNumExecutors)!")
     }
-    if (maxPercExecutors <= 0.0 || maxPercExecutors > 1.0) {
-      throw new SparkException(s"spark.dynamicAllocation.maxPercExecutors ($maxPercExecutors) " +
-        s"must be a real number between 0.0 (not included) and 1.0 (included)")
-    }
     if (schedulerBacklogTimeoutS <= 0) {
       throw new SparkException("spark.dynamicAllocation.schedulerBacklogTimeout must be > 0!")
     }
@@ -206,14 +198,17 @@ private[spark] class ExecutorAllocationManager(
     }
     // Don't require external shuffle service for dynamic allocation even if we may lose
     // shuffle files when killing executors
-    if (!conf.getBoolean("spark.shuffle.service.enabled", false) && !testing && false) {
+    if (Utils.isDynamicAllocationEnabled(conf)
+        && !conf.getBoolean("spark.shuffle.service.enabled", false) && !testing) {
+      logWarning("Using dynamic allocation of executors without the external shuffle service. " +
+        "This is an experimental feature and the performance may be degraded.")
       throw new SparkException("Dynamic allocation of executors requires the external " +
-        "shuffle service. You may enable this through spark.shuffle.service.enabled.")
-    } // TODO (poffuomo): simplify check or just log something instead of raising an exception
+      "shuffle service. You may enable this through spark.shuffle.service.enabled.")
+    }
     if (tasksPerExecutor == 0) {
       throw new SparkException("spark.executor.cores must not be less than spark.task.cpus.")
     }
-    // TODO (poffuomo): dynamic has to be ON for maxPercentage?
+    // TODO (poffuomo): require dynamic allocation to be ON for maxPercentage mechanism to work?
   }
 
   /**
@@ -352,9 +347,8 @@ private[spark] class ExecutorAllocationManager(
 
   /**
    * Request a number of executors from the cluster manager.
-   * If one of the caps on the number of executors or on the percentage of nodes of the whole
-   * cluster is reached, give up and reset the number of executors to add next round instead of
-   * continuing to double it.
+   * If the cap on the number of executors is reached, give up and reset the number of executors to
+   * add next round instead of continuing to double it.
    *
    * @param maxNumExecutorsNeeded the maximum number of executors all currently running or pending
    *                              tasks could fill

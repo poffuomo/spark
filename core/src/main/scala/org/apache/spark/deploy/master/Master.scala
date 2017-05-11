@@ -110,7 +110,6 @@ private[deploy] class Master(
   // As a temporary workaround before better ways of configuring memory, we allow users to set
   // a flag that will perform round-robin scheduling across the nodes (spreading out each app
   // among all the nodes) instead of trying to consolidate each app onto a small # of nodes.
-  // FIXME (poffuomo): "temporary" workaround for what?
   private val spreadOutApps = conf.getBoolean("spark.deploy.spreadOut", true)
 
   // Default maxCores for applications that don't specify it (i.e. pass Int.MaxValue)
@@ -486,10 +485,7 @@ private[deploy] class Master(
       context.reply(BoundPortsResponse(address.port, webUi.boundPort, restServerBoundPort))
 
     case RequestExecutors(appId, requestedTotal) =>
-      context.reply(handleRequestExecutors(appId, requestedTotal, 0.5)) // TODO poffuomo: 1.0
-
-    case RequestPercentageExecutors(appId, requestedTotal, requestedPercentage) =>
-      context.reply(handleRequestExecutors(appId, requestedTotal, requestedPercentage))
+      context.reply(handleRequestExecutors(appId, requestedTotal))
 
     case KillExecutors(appId, executorIds) =>
       val formattedExecutorIds = formatExecutorIds(executorIds)
@@ -566,6 +562,29 @@ private[deploy] class Master(
   }
 
   /**
+    * Schedule and launch executors on workers.
+    */
+  private def startExecutorsOnWorkers(): Unit = {
+    // Right now this is a very simple FIFO scheduler. We keep trying to fit in the first app
+    // in the queue, then the second app, etc.
+    for (app <- waitingApps if app.coresLeft > 0) {
+      val coresPerExecutor: Option[Int] = app.desc.coresPerExecutor
+      // Filter out workers that don't have enough resources to launch an executor
+      val usableWorkers = workers.toArray.filter(_.isAlive())
+        .filter(worker => worker.memoryFree >= app.desc.memoryPerExecutorMB &&
+          worker.coresFree >= coresPerExecutor.getOrElse(1))
+        .sortBy(_.coresFree).reverse
+      val assignedCores = scheduleExecutorsOnWorkers(app, usableWorkers, spreadOutApps)
+
+      // Now that we've decided how many cores to allocate on each worker, let's allocate them
+      for (pos <- usableWorkers.indices if assignedCores(pos) > 0) {
+        allocateWorkerResourceToExecutors(
+          app, assignedCores(pos), coresPerExecutor, usableWorkers(pos))
+      }
+    }
+  }
+
+  /**
    * Schedule executors to be launched on the workers.
    * Returns an array containing the number of cores assigned to each worker.
    *
@@ -578,9 +597,9 @@ private[deploy] class Master(
    * multiple executors from the same application may be launched on the same worker if the worker
    * has enough cores and memory. Otherwise, each executor grabs all the cores available on the
    * worker by default, in which case only one executor may be launched on each worker.
-   * FIXME (poffuomo): more than one executor can run on the same worker just by configuring the
-   * option SPARK_WORKER_INSTANCES in `spark-env.sh`, even without specifying a fixed number of
-   * cores to be allocated to each executor.
+   * Note that in standalone mode more than one executor can run on the same worker just by
+   * configuring the option `SPARK_WORKER_INSTANCES` in `spark-env.sh`, even without specifying a
+   * fixed number of cores to be allocated to each executor.
    *
    * It is important to allocate coresPerExecutor on each worker at a time (instead of 1 core
    * at a time). Consider the following example: cluster has 4 workers with 16 cores each.
@@ -654,29 +673,6 @@ private[deploy] class Master(
   }
 
   /**
-   * Schedule and launch executors on workers.
-   */
-  private def startExecutorsOnWorkers(): Unit = {
-    // Right now this is a very simple FIFO scheduler. We keep trying to fit in the first app
-    // in the queue, then the second app, etc.
-    for (app <- waitingApps if app.coresLeft > 0) {
-      val coresPerExecutor: Option[Int] = app.desc.coresPerExecutor
-      // Filter out workers that don't have enough resources to launch an executor
-      val usableWorkers = workers.toArray.filter(_.isAlive())
-        .filter(worker => worker.memoryFree >= app.desc.memoryPerExecutorMB &&
-          worker.coresFree >= coresPerExecutor.getOrElse(1))
-        .sortBy(_.coresFree).reverse
-      val assignedCores = scheduleExecutorsOnWorkers(app, usableWorkers, spreadOutApps)
-
-      // Now that we've decided how many cores to allocate on each worker, let's allocate them
-      for (pos <- usableWorkers.indices if assignedCores(pos) > 0) {
-        allocateWorkerResourceToExecutors(
-          app, assignedCores(pos), coresPerExecutor, usableWorkers(pos))
-      }
-    }
-  }
-
-  /**
    * Allocate a worker's resources to one or more executors.
    * @param app the info of the application which the executors belong to
    * @param assignedCores number of cores on this worker for this application
@@ -693,6 +689,7 @@ private[deploy] class Master(
     // Otherwise, we launch a single executor that grabs all the assignedCores on this worker.
     val numExecutors = coresPerExecutor.map { assignedCores / _ }.getOrElse(1)
     val coresToAssign = coresPerExecutor.getOrElse(assignedCores)
+
     for (i <- 1 to numExecutors) {
       val exec = app.addExecutor(worker, coresToAssign)
       launchExecutor(worker, exec)
@@ -889,14 +886,11 @@ private[deploy] class Master(
    *
    * @param appId Application unique identifier
    * @param requestedTotal Number of executors requested to the Master
-   * @param requestedCoresPercentage Maximum allowed percentage of cores to be allocated to the
-    *                           application
    * @return whether the application has previously registered with this Master.
    */
   private def handleRequestExecutors(
       appId: String,
-      requestedTotal: Int,
-      requestedCoresPercentage: Double) = {
+      requestedTotal: Int) = {
     idToApp.get(appId) match {
       case Some(app) =>
         logInfo(s"Application $appId requested to set total executors to $requestedTotal.\n" +
@@ -906,7 +900,7 @@ private[deploy] class Master(
         // Adjust the number of executors
         app.executorLimit = requestedTotal
         // Adjust the number of cores
-        app.requestedCores = getCoresLimit(app, requestedCoresPercentage)
+        app.requestedCores = getCoresLimit(app)
 
         schedule()
         true
@@ -919,20 +913,39 @@ private[deploy] class Master(
   /**
     * Computes the maximum allowed number of cores (i.e. computation units) that can be allocated
     * to the Spark application provied as a parameter.
+    *
     * The number of allowed cores is computed as a percentage of the overall number of cores in the
-    * cluster, while the required maximum percentage is also a parameter of the method.
+    * cluster if such configuration property has been specified by the user
+    * (`spark.cores.maxPercentage`), otherwise the also optional property `spark.cores.max` is
+    * honored, with a fallback on .
     *
-    * Note that the unit of allocation here is the core, not the executor.
-    *
+    * @note The unit of allocation here is the single core, not the executor with all its cores.
     * @param app Application for which to update the limit on the number of cores to allocate
-    * @param requestedCoresPercentage Value between 0.0 and 1.0 included referring to the maximum
-    *                                 allowed percentage of utilization of the cluster's total
-    *                                 number of cores
     * @return The maximum number of cores that can be allocated to the application given the
-    *         allowed maximum percentage.
+    *         allowed maximum percentage, rounded at the upper integer
+    * @todo Check the over-allocation (small percentage, zero initial executors, dynamic addition)
     */
-  private def getCoresLimit(app: ApplicationInfo, requestedCoresPercentage: Double): Int = {
-    (requestedCoresPercentage * getNumExistingCores).ceil.toInt
+  private def getCoresLimit(app: ApplicationInfo): Int = {
+    val anyRegisteredWorker = getNumExistingCores > 0
+
+    app.desc.maxPercCores match {
+      case Some(maxPercCores) if anyRegisteredWorker =>
+          maxPercCores match {
+            case 0.0 =>
+              // the app has been requested to run with 0% of the cores
+              0
+            case perc: Double if perc > 1.0 =>
+              app.desc.maxCores.getOrElse(defaultCores)
+            case perc: Double =>
+              (perc * getNumExistingCores).ceil.toInt
+          }
+      case Some(maxPercCores) =>
+        // no registered Workers in the cluster.
+        defaultCores
+      case None =>
+        // cores percentage property not set at all
+        app.desc.maxCores.getOrElse(defaultCores)
+    }
   }
 
   /**
