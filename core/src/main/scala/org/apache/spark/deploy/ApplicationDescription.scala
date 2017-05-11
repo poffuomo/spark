@@ -22,6 +22,8 @@ import java.net.URI
 private[spark] case class ApplicationDescription(
     name: String,
     maxCores: Option[Int],
+    // maximum allowed percentage of cores utilization with regards to the whole cluster
+    maxPercCores: Option[Double],
     memoryPerExecutorMB: Int,
     command: Command,
     appUiUrl: String,

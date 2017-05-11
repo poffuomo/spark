@@ -73,6 +73,7 @@ class MasterSuite extends SparkFunSuite
       desc = new ApplicationDescription(
         name = "",
         maxCores = None,
+        maxPercCores = None,
         memoryPerExecutorMB = 0,
         command = commandToPersist,
         appUiUrl = "",
@@ -369,7 +370,7 @@ class MasterSuite extends SparkFunSuite
     assert(scheduledCores3 === Array(8, 8, 4))
   }
 
-  // Everything being: executor limit + cores per executor + max cores
+  // Everything being: executor limit + cores per executor + max cores + max percentage of cores
   private def schedulingWithEverything(spreadOut: Boolean): Unit = {
     val master = makeMaster()
     val appInfo = makeAppInfo(256, coresPerExecutor = Some(4), maxCores = Some(18))
@@ -408,9 +409,10 @@ class MasterSuite extends SparkFunSuite
   private def makeAppInfo(
       memoryPerExecutorMb: Int,
       coresPerExecutor: Option[Int] = None,
-      maxCores: Option[Int] = None): ApplicationInfo = {
+      maxCores: Option[Int] = None,
+      maxPercCores: Option[Double] = None): ApplicationInfo = {
     val desc = new ApplicationDescription(
-      "test", maxCores, memoryPerExecutorMb, null, "", None, None, coresPerExecutor)
+      "test", maxCores, maxPercCores, memoryPerExecutorMb, null, "", None, None, coresPerExecutor)
     val appId = System.currentTimeMillis.toString
     new ApplicationInfo(0, appId, desc, new Date, null, Int.MaxValue)
   }

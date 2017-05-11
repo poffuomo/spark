@@ -97,6 +97,7 @@ private[spark] class ExecutorAllocationManager(
   private val maxNumExecutors = conf.get(DYN_ALLOCATION_MAX_EXECUTORS)
   private val initialNumExecutors = Utils.getDynamicAllocationInitialExecutors(conf)
   private val maxPercExecutors = conf.get(DYN_ALLOCATION_MAX_PERC_EXECUTORS)
+  // FIXME (poffuomo): check if used (search also "percentage")
 
   // How long there must be backlogged tasks for before an addition is triggered (seconds)
   private val schedulerBacklogTimeoutS = conf.getTimeAsSeconds(
@@ -212,6 +213,7 @@ private[spark] class ExecutorAllocationManager(
     if (tasksPerExecutor == 0) {
       throw new SparkException("spark.executor.cores must not be less than spark.task.cpus.")
     }
+    // TODO (poffuomo): dynamic has to be ON for maxPercentage?
   }
 
   /**
