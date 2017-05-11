@@ -202,8 +202,6 @@ private[spark] class ExecutorAllocationManager(
         && !conf.getBoolean("spark.shuffle.service.enabled", false) && !testing) {
       logWarning("Using dynamic allocation of executors without the external shuffle service. " +
         "This is an experimental feature and the performance may be degraded.")
-      throw new SparkException("Dynamic allocation of executors requires the external " +
-      "shuffle service. You may enable this through spark.shuffle.service.enabled.")
     }
     if (tasksPerExecutor == 0) {
       throw new SparkException("spark.executor.cores must not be less than spark.task.cpus.")
