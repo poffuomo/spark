@@ -25,6 +25,7 @@ import java.nio.ByteBuffer
 import java.nio.channels.Channels
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
+import java.text.NumberFormat
 import java.util.{Locale, Properties, Random, UUID}
 import java.util.concurrent._
 import java.util.concurrent.atomic.AtomicBoolean
@@ -40,7 +41,6 @@ import scala.reflect.ClassTag
 import scala.util.Try
 import scala.util.control.{ControlThrowable, NonFatal}
 import scala.util.matching.Regex
-
 import _root_.io.netty.channel.unix.Errors.NativeIoException
 import com.google.common.cache.{CacheBuilder, CacheLoader, LoadingCache}
 import com.google.common.io.{ByteStreams, Files => GFiles}
@@ -53,7 +53,6 @@ import org.apache.log4j.PropertyConfigurator
 import org.eclipse.jetty.util.MultiException
 import org.json4s._
 import org.slf4j.Logger
-
 import org.apache.spark._
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.internal.Logging
@@ -2645,6 +2644,17 @@ private[spark] object Utils extends Logging {
     redact(redactionPattern, kvs.toArray)
   }
 
+  /**
+    * Pretty percentage format with handling of out-of-bounds value handling.
+    *
+    * @example `0.5` => "`50%`", including the percentage symbol (`%`).
+    * @param d [[Double]] value to prettify.
+    * @return A [[String]] containing the value of the number `d` written as a percentage.
+    */
+  def doubleAsPercentage(d: Double): String = {
+    val valueToFormat = math.max(math.min(d, 1.0), 0.0)
+    NumberFormat.getPercentInstance.format(valueToFormat)
+  }
 }
 
 private[util] object CallerContext extends Logging {
