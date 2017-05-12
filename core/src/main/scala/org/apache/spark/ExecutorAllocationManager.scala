@@ -197,7 +197,7 @@ private[spark] class ExecutorAllocationManager(
       throw new SparkException("spark.dynamicAllocation.executorIdleTimeout must be > 0!")
     }
     // Don't require external shuffle service for dynamic allocation even if we may lose
-    // shuffle files when killing executors
+    // shuffle files when re-allocating executors
     if (Utils.isDynamicAllocationEnabled(conf)
         && !conf.getBoolean("spark.shuffle.service.enabled", false) && !testing) {
       logWarning("Using dynamic allocation of executors without the external shuffle service. " +
@@ -206,7 +206,6 @@ private[spark] class ExecutorAllocationManager(
     if (tasksPerExecutor == 0) {
       throw new SparkException("spark.executor.cores must not be less than spark.task.cpus.")
     }
-    // TODO (poffuomo): require dynamic allocation to be ON for maxPercentage mechanism to work?
   }
 
   /**

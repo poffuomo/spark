@@ -912,21 +912,29 @@ private[deploy] class Master(
 
   /**
     * Computes the maximum allowed number of cores (i.e. computation units) that can be allocated
-    * to the Spark application provied as a parameter.
+    * to the Spark application provided as a parameter.
     *
     * The number of allowed cores is computed as a percentage of the overall number of cores in the
     * cluster if such configuration property has been specified by the user
-    * (`spark.cores.maxPercentage`), otherwise the also optional property `spark.cores.max` is
-    * honored, with a fallback on .
+    * (`spark.cores.maxPercentage`), otherwise the property `spark.cores.max` (also optional) is
+    * honored, with a fallback on the `defaultCores` value.
     *
     * @note The unit of allocation here is the single core, not the executor with all its cores.
     * @param app Application for which to update the limit on the number of cores to allocate
     * @return The maximum number of cores that can be allocated to the application given the
     *         allowed maximum percentage, rounded at the upper integer
-    * @todo Check the over-allocation (small percentage, zero initial executors, dynamic addition)
+    * @todo Potential over-allocation with no initial executors and their dynamic addition, due to
+    *       the fact that it's impossible to know in advance how many cores to assign to satisfy
+    *       the constraint if there are no cores. After the executors start, they are allocated
+    *       to the applications that are waiting but the first executor will likely be all allocated
+    *       to the app (i.e. all its cores) given the "''fallback''" mechanism that sets the limit
+    *       as the "fixed" maximum number of cores property or as `defaultCores`.
+    *       The allocation will stabilize if enough executors are added: the percentage limit will
+    *       be satisfied. This doesn't happen with one only executor.
     */
   private def getCoresLimit(app: ApplicationInfo): Int = {
     val anyRegisteredWorker = getNumExistingCores > 0
+    val fixedLimit = app.desc.maxCores.getOrElse(defaultCores)
 
     app.desc.maxPercCores match {
       case Some(maxPercCores) if anyRegisteredWorker =>
@@ -935,16 +943,16 @@ private[deploy] class Master(
               // the app has been requested to run with 0% of the cores
               0
             case perc: Double if perc > 1.0 =>
-              app.desc.maxCores.getOrElse(defaultCores)
+              fixedLimit
             case perc: Double =>
-              (perc * getNumExistingCores).ceil.toInt
+              math.min((perc * getNumExistingCores).ceil.toInt, fixedLimit)
           }
-      case Some(maxPercCores) =>
-        // no registered Workers in the cluster.
-        defaultCores
+      case Some(maxPercCores) if !anyRegisteredWorker =>
+        fixedLimit
+        // FIXME (poffuomo): the returned value can be higher than the desired one
       case None =>
         // cores percentage property not set at all
-        app.desc.maxCores.getOrElse(defaultCores)
+        fixedLimit
     }
   }
 
