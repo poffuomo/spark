@@ -66,23 +66,19 @@ private[ui] class ApplicationPage(parent: MasterWebUI) extends WebUIPage("app") 
             <li><strong>User:</strong> {app.desc.user}</li>
             <li><strong>Cores:</strong>
             {
-              if (maxCores.isEmpty && maxPercCores.isEmpty) {
-                // no limit set on cores
-                "Unlimited (%s granted)".format(app.coresGranted)
-              } else if (maxCores.nonEmpty && maxPercCores.isEmpty) {
-                // maximum number of cores set
-                "%s (%s granted, %s left)".format(maxCores.get, app.coresGranted, app.coresLeft)
-              } else if (maxCores.isEmpty && maxPercCores.nonEmpty) {
-                // maximum percentage of cores set
-                "%s of the cluster (%s granted, %s left)".format(
-                  Utils.doubleAsPercentage(maxPercCores.get), app.coresGranted, app.coresLeft)
-              } else {
-                // both number and percentage of cores set
-                "%s (max %s of the cluster, %s granted, %s left)".format(
-                  maxCores.get, Utils.doubleAsPercentage(maxPercCores.get), app.coresGranted,
-                  app.coresLeft)
+              (maxCores, maxPercCores) match {
+                case (Some(maxCores), Some(maxPercCores)) =>
+                  "%s (max %s of the cluster, %s granted, %s left)".format(
+                    maxCores, Utils.doubleAsPercentage(maxPercCores), app.coresGranted,
+                    app.coresLeft)
+                case (Some(maxCores), None) =>
+                  "%s (%s granted, %s left)".format(maxCores, app.coresGranted, app.coresLeft)
+                case (None, Some(maxPercCores)) =>
+                  "%s of the cluster (%s granted, %s left)".format(
+                    Utils.doubleAsPercentage(maxPercCores ), app.coresGranted, app.coresLeft)
+                case (None, None) =>
+                  "Unlimited (%s granted)".format(app.coresGranted)
               }
-              // FIXME (poffuomo): rewrite using pattern matching
             }
             </li>
             <li>
