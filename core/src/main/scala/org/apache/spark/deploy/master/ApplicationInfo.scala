@@ -122,7 +122,8 @@ private[spark] class ApplicationInfo(
   }
 
   /**
-    * Check whether the application is waiting for some executors to be launched.
+    * Check whether the application has been launched but it's still waiting for at least one
+    * executors to be run.
     *
     * @return `true` if no executor has been (still) assigned to the application while it has
     *        already been launched and it has already required some processing cores, `false`

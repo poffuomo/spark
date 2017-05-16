@@ -582,8 +582,9 @@ private[deploy] class Master(
         Random.shuffle(waitingApps.filter(_.executors.nonEmpty).take(numStuckApps))
       for (app <- shuffledRunningApps) {
         val executorIdToRemove = app.executors.keySet.take(1).toSeq
-        // TODO (poffuomo): send an updated RequestExecutor message to lower the number of executors
-        // for the app, or it will immediately request a new executor just after losing one
+        // set the decreased number of executors for the application before killing the executor
+        // TODO (poffuomo): check if it's enough to lower the number of executor by one
+        handleRequestExecutors(app.id, app.executorLimit - 1)
         handleKillExecutors(app.id, executorIdToRemove)
       }
     }
@@ -720,7 +721,7 @@ private[deploy] class Master(
     // If the number of cores per executor is specified, we divide the cores assigned
     // to this worker evenly among the executors with no remainder.
     // Otherwise, we launch a single executor that grabs all the assignedCores on this worker.
-    val numExecutors = coresPerExecutor.map { assignedCores / _ }.getOrElse(1)
+    val numExecutors = coresPerExecutor.map{ assignedCores / _ }.getOrElse(1)
     val coresToAssign = coresPerExecutor.getOrElse(assignedCores)
 
     for (i <- 1 to numExecutors) {
@@ -761,7 +762,7 @@ private[deploy] class Master(
       }
     }
 
-//    rescheduleExecutors()
+    rescheduleExecutors()
     startExecutorsOnWorkers()
   }
 
