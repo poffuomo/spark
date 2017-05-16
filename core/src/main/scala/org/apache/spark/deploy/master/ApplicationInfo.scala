@@ -122,6 +122,17 @@ private[spark] class ApplicationInfo(
   }
 
   /**
+    * Check whether the application is waiting for some executors to be launched.
+    *
+    * @return `true` if no executor has been (still) assigned to the application while it has
+    *        already been launched and it has already required some processing cores, `false`
+    *        otherwise.
+    */
+  private[master] def isStuckWaiting: Boolean = {
+    state == ApplicationState.RUNNING && executors.isEmpty && coresLeft > 0
+  }
+
+  /**
    * Return the limit on the number of executors this application can have.
    * For testing only.
    */

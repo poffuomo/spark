@@ -562,6 +562,34 @@ private[deploy] class Master(
   }
 
   /**
+    * Request some running apps to release some Worker nodes if there are other apps waiting for
+    * executors and no executors available in the whole cluster.
+    *
+    * @note The method does not check for "suitability" of Worker nodes: if there is at least one
+    *       available in the cluster, the executors will not be rescheduled even if such node is
+    *       not capable of running one of the "stuck" application (e.g. because of memory and cores
+    *       requirements of the application). This ensures that the logic for the re-scheduling does
+    *       not become too aggressive but just works when there are physically no available nodes.
+    * @author Manfredi Giordano
+    */
+  private def rescheduleExecutors(): Unit = {
+    val aliveWorkers = workers.toArray.filter(_.isAlive())
+    val numStuckApps = waitingApps.count(_.isStuckWaiting)
+
+    if (aliveWorkers.isEmpty && numStuckApps > 0) {
+      // Send a message to some other running applications to ask each of them to free one node
+      val shuffledRunningApps =
+        Random.shuffle(waitingApps.filter(_.executors.nonEmpty).take(numStuckApps))
+      for (app <- shuffledRunningApps) {
+        val executorIdToRemove = app.executors.keySet.take(1).toSeq
+        // TODO (poffuomo): send an updated RequestExecutor message to lower the number of executors
+        // for the app, or it will immediately request a new executor just after losing one
+        handleKillExecutors(app.id, executorIdToRemove)
+      }
+    }
+  }
+
+  /**
     * Schedule and launch executors on workers.
     */
   private def startExecutorsOnWorkers(): Unit = {
@@ -569,11 +597,14 @@ private[deploy] class Master(
     // in the queue, then the second app, etc.
     for (app <- waitingApps if app.coresLeft > 0) {
       val coresPerExecutor: Option[Int] = app.desc.coresPerExecutor
+
       // Filter out workers that don't have enough resources to launch an executor
       val usableWorkers = workers.toArray.filter(_.isAlive())
         .filter(worker => worker.memoryFree >= app.desc.memoryPerExecutorMB &&
           worker.coresFree >= coresPerExecutor.getOrElse(1))
         .sortBy(_.coresFree).reverse
+
+      // Schedule executors and cores
       val assignedCores = scheduleExecutorsOnWorkers(app, usableWorkers, spreadOutApps)
 
       // Now that we've decided how many cores to allocate on each worker, let's allocate them
@@ -606,6 +637,8 @@ private[deploy] class Master(
    * User requests 3 executors (spark.cores.max = 48, spark.executor.cores = 16). If 1 core is
    * allocated at a time, 12 cores from each worker would be assigned to each executor.
    * Since 12 < 16, no executors would launch [SPARK-8881].
+   *
+   * @return The number of cores to be assigned to each worker.
    */
   private def scheduleExecutorsOnWorkers(
       app: ApplicationInfo,
@@ -728,6 +761,7 @@ private[deploy] class Master(
       }
     }
 
+//    rescheduleExecutors()
     startExecutorsOnWorkers()
   }
 
@@ -923,7 +957,7 @@ private[deploy] class Master(
     * @param app Application for which to update the limit on the number of cores to allocate
     * @return The maximum number of cores that can be allocated to the application given the
     *         allowed maximum percentage, rounded at the upper integer
-    * @todo Potential over-allocation with no initial executors and their dynamic addition, due to
+    * @note Potential over-allocation with no initial executors and their dynamic addition, due to
     *       the fact that it's impossible to know in advance how many cores to assign to satisfy
     *       the constraint if there are no cores. After the executors start, they are allocated
     *       to the applications that are waiting but the first executor will likely be all allocated
