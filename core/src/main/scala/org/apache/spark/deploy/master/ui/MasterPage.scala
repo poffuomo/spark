@@ -75,7 +75,7 @@ private[ui] class MasterPage(parent: MasterWebUI) extends WebUIPage("") {
 
     val workerHeaders = Seq("Worker Id", "Address", "State", "Cores", "Memory")
     val workers = state.workers.sortBy(_.id)
-    val aliveWorkers = state.workers.filter(_.isAlive())
+    val aliveWorkers = state.workers.filter(_.isAlive)
     val workerTable = UIUtils.listingTable(workerHeaders, workerRow, workers)
 
     val appHeaders = Seq("Application ID", "Name", "Cores", "Memory per Executor", "Submitted Time",
@@ -179,7 +179,7 @@ private[ui] class MasterPage(parent: MasterWebUI) extends WebUIPage("") {
     <tr>
       <td>
         {
-          if (worker.isAlive()) {
+          if (worker.isAlive) {
             <a href={UIUtils.makeHref(parent.master.reverseProxy, worker.id, worker.webUiAddress)}>
               {worker.id}
             </a>
@@ -256,7 +256,7 @@ private[ui] class MasterPage(parent: MasterWebUI) extends WebUIPage("") {
       <td>{driver.id} {killLink}</td>
       <td>{UIUtils.formatDate(driver.submitDate)}</td>
       <td>{driver.worker.map(w =>
-        if (w.isAlive()) {
+        if (w.isAlive) {
           <a href={UIUtils.makeHref(parent.master.reverseProxy, w.id, w.webUiAddress)}>
             {w.id.toString}
           </a>

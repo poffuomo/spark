@@ -101,5 +101,15 @@ private[spark] class WorkerInfo(
     this.state = state
   }
 
-  def isAlive(): Boolean = this.state == WorkerState.ALIVE
+  def isAlive: Boolean = this.state == WorkerState.ALIVE
+
+  /**
+    * Check whether the Worker is being used, even if not fully (e.g. not all its memory or not
+    * all its cores).
+    *
+    * @return `true` if at least some cores and part of the memory of the Worker is being used,
+    *         `false` otherwise.
+    */
+  def isUsed: Boolean = this.coresUsed > 0 && this.memoryUsed > 0
+
 }

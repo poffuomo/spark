@@ -130,7 +130,7 @@ private[spark] class ApplicationInfo(
     *        otherwise.
     */
   private[master] def isStuckWaiting: Boolean = {
-    state == ApplicationState.RUNNING && executors.isEmpty && coresLeft > 0
+    state == ApplicationState.WAITING && executors.isEmpty && coresLeft > 0
   }
 
   /**

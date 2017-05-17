@@ -573,18 +573,20 @@ private[deploy] class Master(
     * @author Manfredi Giordano
     */
   private def rescheduleExecutors(): Unit = {
-    val aliveWorkers = workers.toArray.filter(_.isAlive())
-    val numStuckApps = waitingApps.count(_.isStuckWaiting)
+    val numFreeWorkers = workers.toArray.filterNot(_.isUsed).count(_.isAlive)
+    val numStuckApps = waitingApps.count(_.isStuckWaiting) // FIXME (poffuomo)
+    logInfo(s"$numFreeWorkers totally free workers and $numStuckApps stuck apps")
 
-    if (aliveWorkers.isEmpty && numStuckApps > 0) {
+    if (numFreeWorkers == 0 && numStuckApps > 0) {
       // Send a message to some other running applications to ask each of them to free one node
       val shuffledRunningApps =
         Random.shuffle(waitingApps.filter(_.executors.nonEmpty).take(numStuckApps))
       for (app <- shuffledRunningApps) {
         val executorIdToRemove = app.executors.keySet.take(1).toSeq
+        logInfo(s"${app.id} will have removed its executor ${executorIdToRemove.mkString}")
+
         // set the decreased number of executors for the application before killing the executor
-        // TODO (poffuomo): check if it's enough to lower the number of executor by one
-        handleRequestExecutors(app.id, app.executorLimit - 1)
+        handleRequestExecutors(app.id, app.executors.size - 1)
         handleKillExecutors(app.id, executorIdToRemove)
       }
     }
@@ -600,7 +602,7 @@ private[deploy] class Master(
       val coresPerExecutor: Option[Int] = app.desc.coresPerExecutor
 
       // Filter out workers that don't have enough resources to launch an executor
-      val usableWorkers = workers.toArray.filter(_.isAlive())
+      val usableWorkers = workers.toArray.filter(_.isAlive)
         .filter(worker => worker.memoryFree >= app.desc.memoryPerExecutorMB &&
           worker.coresFree >= coresPerExecutor.getOrElse(1))
         .sortBy(_.coresFree).reverse
@@ -741,7 +743,7 @@ private[deploy] class Master(
     }
 
     // Drivers take strict precedence over executors
-    val shuffledAliveWorkers = Random.shuffle(workers.toSeq.filter(_.isAlive()))
+    val shuffledAliveWorkers = Random.shuffle(workers.toSeq.filter(_.isAlive))
     val numWorkersAlive = shuffledAliveWorkers.size
     var curPos = 0
     for (driver <- waitingDrivers.toList) { // iterate over a copy of waitingDrivers
@@ -1125,7 +1127,7 @@ private[deploy] class Master(
     * @return the total number of cores of alive Workers in the cluster
     */
   def getNumExistingCores: Int = {
-    workers.toSeq.filter(_.isAlive()).map(_.cores).sum
+    workers.toSeq.filter(_.isAlive).map(_.cores).sum
   }
 
   /**
@@ -1135,7 +1137,7 @@ private[deploy] class Master(
     * @return the number of cores of alive Workers in the cluster that are currently used
     */
   def getNumUsedCores: Int = {
-    workers.toSeq.filter(_.isAlive()).map(_.coresUsed).sum
+    workers.toSeq.filter(_.isAlive).map(_.coresUsed).sum
   }
 
   /**

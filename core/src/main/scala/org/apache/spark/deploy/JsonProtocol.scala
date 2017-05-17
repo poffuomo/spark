@@ -78,7 +78,7 @@ private[deploy] object JsonProtocol {
   }
 
   def writeMasterState(obj: MasterStateResponse): JObject = {
-    val aliveWorkers = obj.workers.filter(_.isAlive())
+    val aliveWorkers = obj.workers.filter(_.isAlive)
     ("url" -> obj.uri) ~
     ("workers" -> obj.workers.toList.map(writeWorkerInfo)) ~
     ("cores" -> aliveWorkers.map(_.cores).sum) ~
