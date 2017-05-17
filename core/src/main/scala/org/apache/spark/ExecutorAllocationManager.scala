@@ -279,7 +279,7 @@ private[spark] class ExecutorAllocationManager(
    * This is factored out into its own method for testing.
    */
   private def schedule(): Unit = synchronized {
-    val now = clock.getTimeMillis
+    val now = clock.getTimeMillis()
 
     updateAndSyncNumExecutorsTarget(now)
 

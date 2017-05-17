@@ -600,7 +600,7 @@ private[deploy] class Master(
     // Right now this is a very simple FIFO scheduler. We keep trying to fit in the first app
     // in the queue, then the second app, etc.
     for (app <- waitingApps if app.coresLeft > 0) {
-      val coresPerExecutor: Option[Int] = app.desc.coresPerExecutor
+      val coresPerExecutor = app.desc.coresPerExecutor
 
       // Filter out workers that don't have enough resources to launch an executor
       val usableWorkers = workers.toArray.filter(_.isAlive)
@@ -706,6 +706,7 @@ private[deploy] class Master(
       }
       freeWorkers = freeWorkers.filter(canLaunchExecutor)
     }
+
     assignedCores
   }
 
