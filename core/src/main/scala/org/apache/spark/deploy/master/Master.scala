@@ -23,7 +23,6 @@ import java.util.concurrent.{ScheduledFuture, TimeUnit}
 
 import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
 import scala.util.Random
-
 import org.apache.spark.{SecurityManager, SparkConf, SparkException}
 import org.apache.spark.deploy.{ApplicationDescription, DriverDescription, ExecutorState, SparkHadoopUtil}
 import org.apache.spark.deploy.DeployMessages._
@@ -36,6 +35,8 @@ import org.apache.spark.metrics.MetricsSystem
 import org.apache.spark.rpc._
 import org.apache.spark.serializer.{JavaSerializer, Serializer}
 import org.apache.spark.util.{ThreadUtils, Utils}
+
+import scala.collection.mutable
 
 private[deploy] class Master(
     override val rpcEnv: RpcEnv,
@@ -584,38 +585,44 @@ private[deploy] class Master(
     val MinExecutorsNeeded = 1
 
     logInfo(s"$numFreeWorkers totally free workers and $numStuckApps stuck apps")
-    // TODO (poffuomo): remove comment
+    // TODO (poffuomo): remove comment when it's no more needed
 
     if (numFreeWorkers == 0 && numStuckApps > 0) {
       // select some random running Workers to have them free one of the corresponding executors
-//      val randomRunningApps = nRandom(
-//        waitingApps.filter(_.isCurrentlyRunning).filter(_.executors.size > MinExecutorsNeeded),
-//        numStuckApps)
+      val randomRunningApps = nRandom(
+        waitingApps.filter(_.isCurrentlyRunning).filter(_.executors.size > MinExecutorsNeeded),
+        numStuckApps)
       val randomBusyWorkers = nRandom(workers.filter(_.isUsed), numStuckApps)
 
-      for (worker <- randomBusyWorkers) {
-        // the executor to remove is chosen randomly, too
-        val executor = nRandom(worker.executors.values, 1).head
+      for (app <- randomRunningApps) {
+        // adjust the desired number of executors for the application; otherwise, the same
+        // application will get back the re-scheduled executor as soon as it loses it
+        app.executorLimit = app.executors.size - 1
+        // TODO (poffuomo): check that this is not a problem if new nodes are added
+
+        // the executor is chosen randomly too
+        val executorToRemove = oneRandom(app.executors.values)
+
         // send the kill message directly to the Worker
-        worker.endpoint.send(KillExecutor(masterUrl, executor.application.id, executor.id))
+        executorToRemove.worker.endpoint.send(KillExecutor(masterUrl, app.id, executorToRemove.id))
       }
 
-//      for (app <- randomRunningApps) {
-//        val appId = app.id
+//      for (worker <- randomBusyWorkers) {
+//        // decrease the desired number of executors of the app that will have removed one;
+//        // otherwise, the same app will gain back the same executor right after its killing
+//
 //        // the executor to remove is chosen randomly, too
-//        val executorIdToRemove = app.executors.keySet.map(_.toString).take(1).toSeq
-//        // FIXME (poffuomo): the executor is not taken at random!
-//        logInfo(s"$appId will have removed its executor ${executorIdToRemove.mkString}")
-        // set the decreased number of executors for the application before killing the executor
-//        handleRequestExecutors(appId, app.executors.size - 1) FIXME (poffuomo): needed?
-//        handleKillExecutors(appId, executorIdToRemove)
-//        self.send(KillExecutors(appId, executorIdToRemove))
-//        worker.endpoint.send(KillExecutor(masterUrl, exec.appId, exec.execId))
+//        val executor = oneRandom(worker.executors.values)
+//        // send the kill message directly to the Worker
+//        worker.endpoint.send(KillExecutor(masterUrl, executor.application.id, executor.id))
 //      }
     }
 
     // helper function to randomly select a fixed number of elements among a collection
     def nRandom[A](coll: Traversable[A], n: Int) = Random.shuffle(coll).take(n).toSeq
+
+    // helper function to randomly select exactly one element of the provided collection
+    def oneRandom[A](coll: Traversable[A]) = nRandom(coll, 1).head
   }
 
   /**
