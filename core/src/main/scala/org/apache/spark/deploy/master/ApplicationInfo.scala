@@ -134,6 +134,18 @@ private[spark] class ApplicationInfo(
   }
 
   /**
+    * Check whether the application is currently running, i.e. not only it's in the state
+    * ''RUNNING'', but also it has some executors allocated.
+    * An already runnning application can have no executors if they are dynamically removed.
+    *
+    * @return `true` if the application is running and is associated to some executors, `false`
+    *         if it's not running or it has no associated executors.
+    */
+  private[master] def isCurrentlyRunning: Boolean = {
+    state == ApplicationState.RUNNING && executors.nonEmpty
+  }
+
+  /**
    * Return the limit on the number of executors this application can have.
    * For testing only.
    */
