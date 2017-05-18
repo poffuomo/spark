@@ -563,34 +563,59 @@ private[deploy] class Master(
   }
 
   /**
-    * Request some running apps to release some Worker nodes if there are other apps waiting for
-    * executors and no executors available in the whole cluster.
+    * Force some running apps to release some Worker nodes if there are other apps waiting for
+    * executors and no executors available in the whole cluster. An executor will be re-allocated
+    * from its current application only if the same application has at least one more executor.
+    *
+    * If the number of running apps is greater than the number of "stuck" apps, then every running
+    * application will lose at most one node. Conversely, if the number of stuck applications is
+    * greater, not all of them will be able to get one executor with this mechanism.
     *
     * @note The method does not check for "suitability" of Worker nodes: if there is at least one
     *       available in the cluster, the executors will not be rescheduled even if such node is
     *       not capable of running one of the "stuck" application (e.g. because of memory and cores
     *       requirements of the application). This ensures that the logic for the re-scheduling does
-    *       not become too aggressive but just works when there are physically no available nodes.
+    *       not become too aggressive but only works when there are zero available nodes.
     * @author Manfredi Giordano
     */
   private def rescheduleExecutors(): Unit = {
-    val numFreeWorkers = workers.toArray.filterNot(_.isUsed).count(_.isAlive)
-    val numStuckApps = waitingApps.count(_.isStuckWaiting) // FIXME (poffuomo)
+    val numFreeWorkers = workers.filterNot(_.isUsed).size
+    val numStuckApps = waitingApps.count(_.isStuckWaiting)
+    val MinExecutorsNeeded = 1
+
     logInfo(s"$numFreeWorkers totally free workers and $numStuckApps stuck apps")
+    // TODO (poffuomo): remove comment
 
     if (numFreeWorkers == 0 && numStuckApps > 0) {
-      // Send a message to some other running applications to ask each of them to free one node
-      val shuffledRunningApps =
-        Random.shuffle(waitingApps.filter(_.executors.nonEmpty).take(numStuckApps))
-      for (app <- shuffledRunningApps) {
-        val executorIdToRemove = app.executors.keySet.take(1).toSeq
-        logInfo(s"${app.id} will have removed its executor ${executorIdToRemove.mkString}")
+      // select some random running Workers to have them free one of the corresponding executors
+//      val randomRunningApps = nRandom(
+//        waitingApps.filter(_.isCurrentlyRunning).filter(_.executors.size > MinExecutorsNeeded),
+//        numStuckApps)
+      val randomBusyWorkers = nRandom(workers.filter(_.isUsed), numStuckApps)
 
-        // set the decreased number of executors for the application before killing the executor
-        handleRequestExecutors(app.id, app.executors.size - 1)
-        handleKillExecutors(app.id, executorIdToRemove)
+      for (worker <- randomBusyWorkers) {
+        // the executor to remove is chosen randomly, too
+        val executor = nRandom(worker.executors.values, 1).head
+        // send the kill message directly to the Worker
+        worker.endpoint.send(KillExecutor(masterUrl, executor.application.id, executor.id))
       }
+
+//      for (app <- randomRunningApps) {
+//        val appId = app.id
+//        // the executor to remove is chosen randomly, too
+//        val executorIdToRemove = app.executors.keySet.map(_.toString).take(1).toSeq
+//        // FIXME (poffuomo): the executor is not taken at random!
+//        logInfo(s"$appId will have removed its executor ${executorIdToRemove.mkString}")
+        // set the decreased number of executors for the application before killing the executor
+//        handleRequestExecutors(appId, app.executors.size - 1) FIXME (poffuomo): needed?
+//        handleKillExecutors(appId, executorIdToRemove)
+//        self.send(KillExecutors(appId, executorIdToRemove))
+//        worker.endpoint.send(KillExecutor(masterUrl, exec.appId, exec.execId))
+//      }
     }
+
+    // helper function to randomly select a fixed number of elements among a collection
+    def nRandom[A](coll: Traversable[A], n: Int) = Random.shuffle(coll).take(n).toSeq
   }
 
   /**
@@ -607,6 +632,7 @@ private[deploy] class Master(
         .filter(worker => worker.memoryFree >= app.desc.memoryPerExecutorMB &&
           worker.coresFree >= coresPerExecutor.getOrElse(1))
         .sortBy(_.coresFree).reverse
+      logInfo(s"${usableWorkers.length} usable workers now to start any executor")
 
       // Schedule executors and cores
       val assignedCores = scheduleExecutorsOnWorkers(app, usableWorkers, spreadOutApps)
