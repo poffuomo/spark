@@ -582,47 +582,56 @@ private[deploy] class Master(
   private def rescheduleExecutors(): Unit = {
     val numFreeWorkers = workers.filterNot(_.isUsed).size
     val numStuckApps = waitingApps.count(_.isStuckWaiting)
-    val MinExecutorsNeeded = 1
+    val MinExecutorsToKeep = 1
 
     logInfo(s"$numFreeWorkers totally free workers and $numStuckApps stuck apps")
     // TODO (poffuomo): remove comment when it's no more needed
 
     if (numFreeWorkers == 0 && numStuckApps > 0) {
-      // select some random running Workers to have them free one of the corresponding executors
-      val randomRunningApps = nRandom(
-        waitingApps.filter(_.isCurrentlyRunning).filter(_.executors.size > MinExecutorsNeeded),
+      // select some random running Workers to have them free one of the related executors
+      val targetRunningApps = pickNRandom(
+        waitingApps.filter(_.isCurrentlyRunning).filter(_.executors.size > MinExecutorsToKeep),
         numStuckApps)
-      val randomBusyWorkers = nRandom(workers.filter(_.isUsed), numStuckApps)
+      // TODO (poffuomo): check the behaviour with > 1 Executor per Worker
 
-      for (app <- randomRunningApps) {
+      for (app <- targetRunningApps) {
         // adjust the desired number of executors for the application; otherwise, the same
         // application will get back the re-scheduled executor as soon as it loses it
         app.executorLimit = app.executors.size - 1
         // TODO (poffuomo): check that this is not a problem if new nodes are added
 
-        // the executor is chosen randomly too
-        val executorToRemove = oneRandom(app.executors.values)
+        // the Executor is chosen randomly too among the ones associated with the app
+        val executorToRemove = pick1Random(app.executors.values)
 
-        // send the kill message directly to the Worker
+        // send the kill message directly to the Worker related to the Executor
         executorToRemove.worker.endpoint.send(KillExecutor(masterUrl, app.id, executorToRemove.id))
       }
-
-//      for (worker <- randomBusyWorkers) {
-//        // decrease the desired number of executors of the app that will have removed one;
-//        // otherwise, the same app will gain back the same executor right after its killing
-//
-//        // the executor to remove is chosen randomly, too
-//        val executor = oneRandom(worker.executors.values)
-//        // send the kill message directly to the Worker
-//        worker.endpoint.send(KillExecutor(masterUrl, executor.application.id, executor.id))
-//      }
     }
 
-    // helper function to randomly select a fixed number of elements among a collection
-    def nRandom[A](coll: Traversable[A], n: Int) = Random.shuffle(coll).take(n).toSeq
+    /**
+      * Helper function to randomly select a fixed number of elements among the provided collection.
+      * Always returns a [[scala.collection.Seq Seq]].
+      *
+      * @param coll Traversable collection from which to select the elements.
+      * @param n Number of elements to select.
+      * @tparam A Type parameter of the input collection. It will be the type parameter of the
+      *           output sequence as well.
+      * @return A sequence of `n` elements randomly taken from the input collection `coll` (given
+      *         that `coll` contains at least `n` elements, otherwise all the elements of `coll`
+      *         with a shuffled order).
+      */
+    def pickNRandom[A](coll: Traversable[A], n: Int) = Random.shuffle(coll).take(n).toSeq
 
-    // helper function to randomly select exactly one element of the provided collection
-    def oneRandom[A](coll: Traversable[A]) = nRandom(coll, 1).head
+    /**
+      * Helper function to randomly select exactly one element of the provided collection.
+      *
+      * @param coll Traversable collection from which to select the random element.
+      * @tparam A Type parameter of the input collection. It will also be the type of the returned
+      *           element.
+      * @return A single element randomly taken from the input collection `coll` (given that `coll`
+      *         contains at least one element).
+      */
+    def pick1Random[A](coll: Traversable[A]) = pickNRandom(coll, 1).head
   }
 
   /**
@@ -988,21 +997,25 @@ private[deploy] class Master(
     *
     * The number of allowed cores is computed as a percentage of the overall number of cores in the
     * cluster if such configuration property has been specified by the user
-    * (`spark.cores.maxPercentage`), otherwise the property `spark.cores.max` (also optional) is
+    * (`spark.cores.maxPercentage`). If not, the property `spark.cores.max` (also optional) is
     * honored, with a fallback on the `defaultCores` value.
     *
-    * @note The unit of allocation here is the single core, not the executor with all its cores.
-    * @param app Application for which to update the limit on the number of cores to allocate
-    * @return The maximum number of cores that can be allocated to the application given the
-    *         allowed maximum percentage, rounded at the upper integer
-    * @note Potential over-allocation with no initial executors and their dynamic addition, due to
+    * @note The unit of allocation considered here is a single core, not an executor (with all its
+    *       cores).
+    * @note Potential over-allocation with no initial executors and dynamic addition of them, due to
     *       the fact that it's impossible to know in advance how many cores to assign to satisfy
-    *       the constraint if there are no cores. After the executors start, they are allocated
-    *       to the applications that are waiting but the first executor will likely be all allocated
-    *       to the app (i.e. all its cores) given the "''fallback''" mechanism that sets the limit
-    *       as the "fixed" maximum number of cores property or as `defaultCores`.
+    *       the percentage constraint if there are no cores at the moment.
+    *       The moment new executors start, they are allocated to the applications that are waiting
+    *       for them; the problem is that all the cores of the first executor will likely be
+    *       allocated to the same app regardless of the wanted maximum percentage given the
+    *       "''fallback''" mechanism that sets the limit as the "fixed" maximum number of cores
+    *       property or as `defaultCores`.
     *       The allocation will stabilize if enough executors are added: the percentage limit will
-    *       be satisfied. This doesn't happen with one only executor.
+    *       eventually be satisfied. With a small number of executors, on the contrary, the
+    *       allocation will not stabilize.
+    * @param app Application for which to update the limit on the number of cores to allocate.
+    * @return The maximum number of cores that can be allocated to the application given the
+    *         allowed maximum percentage, rounded to the closest bigger integer.
     */
   private def getCoresLimit(app: ApplicationInfo): Int = {
     val anyRegisteredWorker = getNumExistingCores > 0
@@ -1021,7 +1034,7 @@ private[deploy] class Master(
           }
       case Some(maxPercCores) if !anyRegisteredWorker =>
         fixedLimit
-        // FIXME (poffuomo): the returned value can be higher than the desired one
+        // FIXME the returned value can be higher than the desired one, at least before it converges
       case None =>
         // cores percentage property not set at all
         fixedLimit
