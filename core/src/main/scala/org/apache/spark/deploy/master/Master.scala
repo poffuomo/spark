@@ -580,7 +580,7 @@ private[deploy] class Master(
     * @author Manfredi Giordano
     */
   private def rescheduleExecutors(): Unit = {
-    val numFreeWorkers = workers.filterNot(_.isUsed).size
+    val numFreeWorkers = workers.filterNot(_.isUsed).count(_.isAlive)
     val numStuckApps = waitingApps.count(_.isStuckWaiting)
     val MinExecutorsToKeep = 1
 
@@ -597,7 +597,6 @@ private[deploy] class Master(
         // adjust the desired number of executors for the application; otherwise, the same
         // application will get back the re-scheduled executor as soon as it loses it
         app.executorLimit = app.executors.size - 1
-        // TODO (poffuomo): check that this is not a problem if new nodes are added
 
         // the Executor is chosen randomly too among the ones associated with the app
         val executorToRemove = pick1Random(app.executors.values)
@@ -1033,7 +1032,7 @@ private[deploy] class Master(
             case perc: Double =>
               math.min((perc * getNumExistingCores).ceil.toInt, fixedLimit)
           }
-      case Some(maxPercCores) if !anyRegisteredWorker =>
+      case Some(_) if !anyRegisteredWorker =>
         fixedLimit
         // FIXME the returned value can be higher than the desired one, at least before it converges
       case None =>
