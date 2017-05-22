@@ -23,6 +23,7 @@ import java.util.concurrent.{ScheduledFuture, TimeUnit}
 
 import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
 import scala.util.Random
+
 import org.apache.spark.{SecurityManager, SparkConf, SparkException}
 import org.apache.spark.deploy.{ApplicationDescription, DriverDescription, ExecutorState, SparkHadoopUtil}
 import org.apache.spark.deploy.DeployMessages._
@@ -35,8 +36,6 @@ import org.apache.spark.metrics.MetricsSystem
 import org.apache.spark.rpc._
 import org.apache.spark.serializer.{JavaSerializer, Serializer}
 import org.apache.spark.util.{ThreadUtils, Utils}
-
-import scala.collection.mutable
 
 private[deploy] class Master(
     override val rpcEnv: RpcEnv,
@@ -311,6 +310,7 @@ private[deploy] class Master(
               }
             }
           }
+          logInfo(s"Going to schedule because exec $execId status changed")
           schedule()
         case None =>
           logWarning(s"Got status update for unknown executor $appId/$execId")
@@ -585,14 +585,13 @@ private[deploy] class Master(
     val MinExecutorsToKeep = 1
 
     logInfo(s"$numFreeWorkers totally free workers and $numStuckApps stuck apps")
-    // TODO (poffuomo): remove comment when it's no more needed
+    // TODO (poffuomo): remove comment
 
-    if (numFreeWorkers == 0 && numStuckApps > 0) {
+    if (numStuckApps > 0 && numFreeWorkers == 0) {
       // select some random running Workers to have them free one of the related executors
       val targetRunningApps = pickNRandom(
         waitingApps.filter(_.isCurrentlyRunning).filter(_.executors.size > MinExecutorsToKeep),
         numStuckApps)
-      // TODO (poffuomo): check the behaviour with > 1 Executor per Worker
 
       for (app <- targetRunningApps) {
         // adjust the desired number of executors for the application; otherwise, the same
@@ -649,6 +648,7 @@ private[deploy] class Master(
           worker.coresFree >= coresPerExecutor.getOrElse(1))
         .sortBy(_.coresFree).reverse
       logInfo(s"${usableWorkers.length} usable workers now to start any executor")
+      // TODO (poffuomo): remove comment
 
       // Schedule executors and cores
       val assignedCores = scheduleExecutorsOnWorkers(app, usableWorkers, spreadOutApps)
@@ -808,6 +808,7 @@ private[deploy] class Master(
       }
     }
 
+    // Free one executor so that stuck applications can start executing their tasks
     rescheduleExecutors()
     startExecutorsOnWorkers()
   }
@@ -974,7 +975,7 @@ private[deploy] class Master(
       requestedTotal: Int) = {
     idToApp.get(appId) match {
       case Some(app) =>
-        logInfo(s"Application $appId requested to set total executors to $requestedTotal.\n" +
+        logInfo(s"Application $appId requested to set total executors to $requestedTotal. " +
           s"Current percentage of cores utilization: " +
           s"${NumberFormat.getPercentInstance.format(getRatioUsedCores(app.coresGranted))}")
 
@@ -1064,6 +1065,8 @@ private[deploy] class Master(
           logWarning(s"Application $appId attempted to kill non-existent executors: "
             + unknown.mkString(", "))
         }
+
+        logInfo(s"Going to schedule because of ${known.mkString(", ")} execs being killed")
         schedule()
         true
       case None =>
