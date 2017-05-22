@@ -45,11 +45,12 @@ import org.apache.spark.util.{AccumulatorV2, ThreadUtils, Utils}
  * Clients should first call initialize() and start(), then submit task sets through the
  * runTasks method.
  *
- * THREADING: [[SchedulerBackend]]s and task-submitting clients can call this class from multiple
- * threads, so it needs locks in public API methods to maintain its state. In addition, some
- * [[SchedulerBackend]]s synchronize on themselves when they want to send events here, and then
- * acquire a lock on us, so we need to make sure that we don't try to lock the backend while
- * we are holding a lock on ourselves.
+ * THREADING: [[org.apache.spark.scheduler.SchedulerBackend SchedulerBackend]]s and task-submitting
+ * clients can call this class from multiple threads, so it needs locks in public API methods to
+ * maintain its state. In addition, some
+ * [[org.apache.spark.scheduler.SchedulerBackend SchedulerBackend]]s synchronize on themselves when
+ * they want to send events here, and then acquire a lock on us, so we need to make sure that we
+ * don't try to lock the backend while we are holding a lock on ourselves.
  */
 private[spark] class TaskSchedulerImpl private[scheduler](
     val sc: SparkContext,
@@ -287,7 +288,7 @@ private[spark] class TaskSchedulerImpl private[scheduler](
     var launchedTask = false
     // nodes and executors that are blacklisted for the entire application have already been
     // filtered out by this point
-    for (i <- 0 until shuffledOffers.size) {
+    for (i <- shuffledOffers.indices) {
       val execId = shuffledOffers(i).executorId
       val host = shuffledOffers(i).host
       if (availableCpus(i) >= CPUS_PER_TASK) {
@@ -311,7 +312,7 @@ private[spark] class TaskSchedulerImpl private[scheduler](
         }
       }
     }
-    return launchedTask
+    launchedTask
   }
 
   /**
@@ -382,7 +383,7 @@ private[spark] class TaskSchedulerImpl private[scheduler](
       }
     }
 
-    if (tasks.size > 0) {
+    if (tasks.nonEmpty) {
       hasLaunchedTask = true
     }
     return tasks
@@ -663,7 +664,7 @@ private[spark] class TaskSchedulerImpl private[scheduler](
   def getRackForHost(value: String): Option[String] = None
 
   private def waitBackendReady(): Unit = {
-    if (backend.isReady) {
+    if (backend.isReady()) {
       return
     }
     while (!backend.isReady) {

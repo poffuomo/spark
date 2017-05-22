@@ -159,7 +159,7 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
           executorRef.send(RegisterExecutorFailed("Duplicate executor ID: " + executorId))
           context.reply(true)
         } else if (scheduler.nodeBlacklist != null &&
-          scheduler.nodeBlacklist.contains(hostname)) {
+          scheduler.nodeBlacklist().contains(hostname)) {
           // If the cluster manager gives us an executor on a blacklisted node (because it
           // already started allocating those resources before we informed it of our blacklist,
           // or if it ignored our blacklist), then we reject that executor immediately.
@@ -458,7 +458,7 @@ class CoarseGrainedSchedulerBackend(scheduler: TaskSchedulerImpl, val rpcEnv: Rp
   def sufficientResourcesRegistered(): Boolean = true
 
   override def isReady(): Boolean = {
-    if (sufficientResourcesRegistered) {
+    if (sufficientResourcesRegistered()) {
       logInfo("SchedulerBackend is ready for scheduling beginning after " +
         s"reached minRegisteredResourcesRatio: $minRegisteredRatio")
       return true
