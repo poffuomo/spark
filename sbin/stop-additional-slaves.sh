@@ -40,6 +40,7 @@ fi
 # Count the number of Spark workers already running on this machine
 EXISTING_WORKER_INSTANCES=$(ps -ef | grep -v grep | grep deploy.worker.Worker | wc -l)
 
+# Stop all the slaves, the "traditional" ones and the dynamically added ones
 for ((i=0; i<$EXISTING_WORKER_INSTANCES; i++)); do
   "${SPARK_HOME}/sbin"/spark-daemon.sh \
     stop org.apache.spark.deploy.worker.Worker $(( $EXISTING_WORKER_INSTANCES - $i ))

@@ -24,6 +24,10 @@
 # additional workers that will be created in the machine will be wither 1 or the value
 # specified in SPARK_WORKER_INSTANCES.
 #
+# Use 'stop-additional-slave.sh', 'stop-additional-slaves.sh' or 'stop-really-all.sh' to stop
+# the execution of the dynamically added slaves. The scripts 'stop-slave.sh', 'stop-slaves.sh'
+# and 'stop-all.sh' will not be able to stop these additional slaves.
+#
 # Environment Variables
 #
 #   SPARK_WORKER_INSTANCES  The number of worker instances to add on this

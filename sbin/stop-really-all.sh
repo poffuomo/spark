@@ -32,7 +32,7 @@ fi
 # Load the Spark configuration
 . "${SPARK_HOME}/sbin/spark-config.sh"
 
-# Stop the slaves, then the master
+# Stop all the slaves, the "traditional" one and the dynamically added ones, then the master
 "${SPARK_HOME}/sbin"/stop-additional-slaves.sh
 "${SPARK_HOME}/sbin"/stop-master.sh
 

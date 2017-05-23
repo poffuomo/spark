@@ -48,6 +48,7 @@ EXISTING_WORKER_INSTANCES=$(ps -ef | grep -v grep | grep deploy.worker.Worker | 
 if [ "$SPARK_WORKER_INSTANCES" = "" ]; then
   "${SPARK_HOME}/sbin"/spark-daemon.sh stop org.apache.spark.deploy.worker.Worker $EXISTING_WORKER_INSTANCES
 else
+  # Stop a number of slaves given by the variable SPARK_WORKER_INSTANCES
   for ((i=0; i<$SPARK_WORKER_INSTANCES; i++)); do
     "${SPARK_HOME}/sbin"/spark-daemon.sh \
       stop org.apache.spark.deploy.worker.Worker $(( $EXISTING_WORKER_INSTANCES - $i ))
