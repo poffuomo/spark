@@ -2552,7 +2552,7 @@ private[spark] object Utils extends Logging {
    * this is formatted as PID@hostname.
    */
   def getProcessName(): String = {
-    ManagementFactory.getRuntimeMXBean().getName()
+    ManagementFactory.getRuntimeMXBean.getName
   }
 
   /**

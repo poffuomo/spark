@@ -310,7 +310,6 @@ private[deploy] class Master(
               }
             }
           }
-          logInfo(s"Going to schedule because exec $execId status changed")
           schedule()
         case None =>
           logWarning(s"Got status update for unknown executor $appId/$execId")
@@ -564,19 +563,18 @@ private[deploy] class Master(
   }
 
   /**
-    * Force some running apps to release some Worker nodes if there are other apps waiting for
-    * executors and no executors available in the whole cluster. An executor will be re-allocated
-    * from its current application only if the same application has at least one more executor.
+    * Force some running apps to release some Worker nodes if other apps are waiting for executors
+    * and no executors are available in the whole cluster.
     *
-    * If the number of running apps is greater than the number of "stuck" apps, then every running
-    * application will lose at most one node. Conversely, if the number of stuck applications is
-    * greater, not all of them will be able to get one executor with this mechanism.
+    * An executor will be re-allocated from its current application only if the same application has
+    * at least one more executor.
     *
-    * @note The method does not check for "suitability" of Worker nodes: if there is at least one
-    *       available in the cluster, the executors will not be rescheduled even if such node is
-    *       not capable of running one of the "stuck" application (e.g. because of memory and cores
-    *       requirements of the application). This ensures that the logic for the re-scheduling does
-    *       not become too aggressive but only works when there are zero available nodes.
+    * @note The method does not check for the "suitability" of Worker nodes: if there is at least
+    *       one available node in the cluster, the executors will not be rescheduled regardless of
+    *       whether such node is capable of running one of the "stuck" applications or not (e.g.
+    *       because of memory and CPU requirements of the app). This ensures that the logic for
+    *       the re-scheduling does not become too aggressive but only works when there are zero
+    *       available nodes.
     * @author Manfredi Giordano
     */
   private def rescheduleExecutors(): Unit = {
@@ -588,7 +586,7 @@ private[deploy] class Master(
     // TODO (poffuomo): remove comment
 
     if (numStuckApps > 0 && numFreeWorkers == 0) {
-      // select some random running Workers to have them free one of the related executors
+      // select some random running applications to make them free one of their executors
       val targetRunningApps = pickNRandom(
         waitingApps.filter(_.isCurrentlyRunning).filter(_.executors.size > MinExecutorsToKeep),
         numStuckApps)
@@ -807,7 +805,7 @@ private[deploy] class Master(
       }
     }
 
-    // Free one executor so that stuck applications can start executing their tasks
+    // Re-arrange existing executors so that stuck applications can start running
     rescheduleExecutors()
     startExecutorsOnWorkers()
   }
@@ -1065,7 +1063,6 @@ private[deploy] class Master(
             + unknown.mkString(", "))
         }
 
-        logInfo(s"Going to schedule because of ${known.mkString(", ")} execs being killed")
         schedule()
         true
       case None =>
