@@ -371,7 +371,7 @@ querySpecification
        (RECORDREADER recordReader=STRING)?
        fromClause?
        (WHERE where=booleanExpression)?)
-    | ((kind=SELECT hint? setQuantifier? namedExpressionSeq fromClause?
+    | ((kind=SELECT (hints+=hint)* setQuantifier? namedExpressionSeq fromClause?
        | fromClause (kind=SELECT setQuantifier? namedExpressionSeq)?)
        lateralView*
        (WHERE where=booleanExpression)?
@@ -381,12 +381,12 @@ querySpecification
     ;
 
 hint
-    : '/*+' hintStatement '*/'
+    : '/*+' hintStatements+=hintStatement (','? hintStatements+=hintStatement)* '*/'
     ;
 
 hintStatement
     : hintName=identifier
-    | hintName=identifier '(' parameters+=identifier (',' parameters+=identifier)* ')'
+    | hintName=identifier '(' parameters+=primaryExpression (',' parameters+=primaryExpression)* ')'
     ;
 
 fromClause
@@ -473,7 +473,7 @@ identifierComment
 
 relationPrimary
     : tableIdentifier sample? tableAlias                   #tableName
-    | '(' queryNoWith ')' sample? (AS? strictIdentifier)   #aliasedQuery
+    | '(' queryNoWith ')' sample? (AS? strictIdentifier)?  #aliasedQuery
     | '(' relation ')' sample? (AS? strictIdentifier)?     #aliasedRelation
     | inlineTable                                          #inlineTableDefault2
     | functionTable                                        #tableValuedFunction
