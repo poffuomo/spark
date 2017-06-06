@@ -125,12 +125,17 @@ private[spark] class ApplicationInfo(
     * Check whether the application has been launched but it's still waiting for at least one
     * executors to be run.
     *
+    * An application is considered to be ''stuck'' even if it was running before, but then it lost
+    * all its executors and now it has no allocated executors. If the aim is to introduce a fairer
+    * cluster environment, then it makes sense to consider as "stuck" all the "running"
+    * applications that have no allocated executors.
+    *
     * @return `true` if no executor has been (still) assigned to the application while it has
     *        already been launched and it has already required some processing cores, `false`
     *        otherwise.
     */
   private[master] def isStuckWaiting: Boolean = {
-    state == ApplicationState.WAITING && executors.isEmpty && coresLeft > 0
+    executors.isEmpty && coresLeft > 0
   }
 
   /**
