@@ -582,9 +582,6 @@ private[deploy] class Master(
     val numStuckApps = waitingApps.count(_.isStuckWaiting)
     val MinExecutorsToKeep = 1
 
-    logInfo(s"$numFreeWorkers totally free workers and $numStuckApps stuck apps")
-    // TODO (poffuomo): remove comment
-
     if (numStuckApps > 0 && numFreeWorkers == 0) {
       // select some random running applications to make them free one of their executors
       val targetRunningApps = pickNRandom(
@@ -644,8 +641,6 @@ private[deploy] class Master(
         .filter(worker => worker.memoryFree >= app.desc.memoryPerExecutorMB &&
           worker.coresFree >= coresPerExecutor.getOrElse(1))
         .sortBy(_.coresFree).reverse
-      logInfo(s"${usableWorkers.length} usable workers now to start any executor")
-      // TODO (poffuomo): remove comment
 
       // Schedule executors and cores
       val assignedCores = scheduleExecutorsOnWorkers(app, usableWorkers, spreadOutApps)
