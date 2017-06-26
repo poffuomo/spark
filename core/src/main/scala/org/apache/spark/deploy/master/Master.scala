@@ -87,7 +87,7 @@ private[deploy] class Master(
   private val masterSource = new MasterSource(this)
 
   // After onStart, webUi will be set
-  private var webUi: MasterWebUI = null
+  private var webUi: MasterWebUI = _
 
   private val masterPublicAddress = {
     val envVar = conf.getenv("SPARK_PUBLIC_DNS")
@@ -114,7 +114,7 @@ private[deploy] class Master(
 
   // Default maxCores for applications that don't specify it (i.e. pass Int.MaxValue)
   private val defaultCores = conf.getInt("spark.deploy.defaultCores", Int.MaxValue)
-  val reverseProxy = conf.getBoolean("spark.ui.reverseProxy", false)
+  val reverseProxy: Boolean = conf.getBoolean("spark.ui.reverseProxy", false)
   if (defaultCores < 1) {
     throw new SparkException("spark.deploy.defaultCores must be positive")
   }
@@ -496,7 +496,7 @@ private[deploy] class Master(
   override def onDisconnected(address: RpcAddress): Unit = {
     // The disconnected client could've been either a worker or an app; remove whichever it was
     logInfo(s"$address got disassociated, removing it.")
-    addressToWorker.get(address).foreach(removeWorker(_, s"${address} got disassociated"))
+    addressToWorker.get(address).foreach(removeWorker(_, s"$address got disassociated"))
     addressToApp.get(address).foreach(finishApplication)
     if (state == RecoveryState.RECOVERING && canCompleteRecovery) { completeRecovery() }
   }
@@ -745,34 +745,7 @@ private[deploy] class Master(
       freeWorkers = freeWorkers.filter(canLaunchExecutor)
     }
 
-<<<<<<< HEAD
     assignedCores
-=======
-  /**
-   * Schedule and launch executors on workers
-   */
-  private def startExecutorsOnWorkers(): Unit = {
-    // Right now this is a very simple FIFO scheduler. We keep trying to fit in the first app
-    // in the queue, then the second app, etc.
-    for (app <- waitingApps) {
-      val coresPerExecutor = app.desc.coresPerExecutor.getOrElse(1)
-      // If the cores left is less than the coresPerExecutor,the cores left will not be allocated
-      if (app.coresLeft >= coresPerExecutor) {
-        // Filter out workers that don't have enough resources to launch an executor
-        val usableWorkers = workers.toArray.filter(_.state == WorkerState.ALIVE)
-          .filter(worker => worker.memoryFree >= app.desc.memoryPerExecutorMB &&
-            worker.coresFree >= coresPerExecutor)
-          .sortBy(_.coresFree).reverse
-        val assignedCores = scheduleExecutorsOnWorkers(app, usableWorkers, spreadOutApps)
-
-        // Now that we've decided how many cores to allocate on each worker, let's allocate them
-        for (pos <- 0 until usableWorkers.length if assignedCores(pos) > 0) {
-          allocateWorkerResourceToExecutors(
-            app, assignedCores(pos), app.desc.coresPerExecutor, usableWorkers(pos))
-        }
-      }
-    }
->>>>>>> apache/master
   }
 
   /**

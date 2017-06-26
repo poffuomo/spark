@@ -79,12 +79,8 @@ private[deploy] object JsonProtocol {
     ("id" -> obj.id) ~
     ("starttime" -> obj.startTime) ~
     ("name" -> obj.desc.name) ~
-<<<<<<< HEAD
-    ("cores" -> obj.desc.maxCores) ~
-    ("percentageofcores" -> obj.desc.maxPercCores) ~
-=======
     ("cores" -> obj.coresGranted) ~
->>>>>>> apache/master
+    ("percentageofcores" -> obj.desc.maxPercCores) ~
     ("user" -> obj.desc.user) ~
     ("memoryperslave" -> obj.desc.memoryPerExecutorMB) ~
     ("submitdate" -> obj.submitDate.toString) ~
@@ -105,12 +101,8 @@ private[deploy] object JsonProtocol {
    */
   def writeApplicationDescription(obj: ApplicationDescription): JObject = {
     ("name" -> obj.name) ~
-<<<<<<< HEAD
-    ("cores" -> obj.maxCores) ~
-    ("percentageofcores" -> obj.maxPercCores) ~
-=======
     ("cores" -> obj.maxCores.getOrElse(0)) ~
->>>>>>> apache/master
+    ("percentageofcores" -> obj.maxPercCores) ~
     ("memoryperslave" -> obj.memoryPerExecutorMB) ~
     ("user" -> obj.user) ~
     ("command" -> obj.command.toString)
