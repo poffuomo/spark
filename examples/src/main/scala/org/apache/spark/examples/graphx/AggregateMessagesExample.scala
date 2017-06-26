@@ -25,8 +25,9 @@ import org.apache.spark.graphx.util.GraphGenerators
 import org.apache.spark.sql.SparkSession
 
 /**
- * An example use the [`aggregateMessages`][Graph.aggregateMessages] operator to
- * compute the average age of the more senior followers of each user
+ * An example use the [[org.apache.spark.graphx.Graph Graph.aggregateMessages]] operator to
+ * compute the average age of the more senior followers of each user.
+ *
  * Run with
  * {{{
  * bin/run-example graphx.AggregateMessagesExample
@@ -37,7 +38,7 @@ object AggregateMessagesExample {
   def main(args: Array[String]): Unit = {
     // Creates a SparkSession.
     val spark = SparkSession
-      .builder
+      .builder()
       .appName(s"${this.getClass.getSimpleName}")
       .getOrCreate()
     val sc = spark.sparkContext
@@ -63,7 +64,7 @@ object AggregateMessagesExample {
       olderFollowers.mapValues( (id, value) =>
         value match { case (count, totalAge) => totalAge / count } )
     // Display the results
-    avgAgeOfOlderFollowers.collect.foreach(println(_))
+    avgAgeOfOlderFollowers.collect().foreach(println(_))
     // $example off$
 
     spark.stop()
