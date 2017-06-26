@@ -136,9 +136,9 @@ private[deploy] class Worker(
   val appDirectories = new HashMap[String, Seq[String]]
   val finishedApps = new HashSet[String]
 
-  val retainedExecutors = conf.getInt("spark.worker.ui.retainedExecutors",
+  val retainedExecutors: Int = conf.getInt("spark.worker.ui.retainedExecutors",
     WorkerWebUI.DEFAULT_RETAINED_EXECUTORS)
-  val retainedDrivers = conf.getInt("spark.worker.ui.retainedDrivers",
+  val retainedDrivers: Int = conf.getInt("spark.worker.ui.retainedDrivers",
     WorkerWebUI.DEFAULT_RETAINED_DRIVERS)
 
   // The shuffle service is not actually started unless configured.
@@ -148,14 +148,14 @@ private[deploy] class Worker(
     val envVar = conf.getenv("SPARK_PUBLIC_DNS")
     if (envVar != null) envVar else host
   }
-  private var webUi: WorkerWebUI = null
+  private var webUi: WorkerWebUI = _
 
   private var connectionAttemptCount = 0
 
   private val metricsSystem = MetricsSystem.createMetricsSystem("worker", conf, securityMgr)
   private val workerSource = new WorkerSource(this)
 
-  private var registerMasterFutures: Array[JFuture[_]] = null
+  private var registerMasterFutures: Array[JFuture[_]] = _
   private var registrationRetryTimer: Option[JScheduledFuture[_]] = None
 
   // A thread pool for registering with masters. Because registering with a master is a blocking
@@ -749,7 +749,7 @@ private[deploy] object Worker extends Logging {
     // more detail see SPARK-20989.
     val externalShuffleServiceEnabled = conf.getBoolean("spark.shuffle.service.enabled", false)
     val sparkWorkerInstances = scala.sys.env.getOrElse("SPARK_WORKER_INSTANCES", "1").toInt
-    require(externalShuffleServiceEnabled == false || sparkWorkerInstances <= 1,
+    require(!externalShuffleServiceEnabled || sparkWorkerInstances <= 1,
       "Starting multiple workers on one host is failed because we may launch no more than one " +
         "external shuffle service on each host, please set spark.shuffle.service.enabled to " +
         "false or set SPARK_WORKER_INSTANCES to 1 to resolve the conflict.")
@@ -771,7 +771,7 @@ private[deploy] object Worker extends Logging {
     val systemName = SYSTEM_NAME + workerNumber.map(_.toString).getOrElse("")
     val securityMgr = new SecurityManager(conf)
     val rpcEnv = RpcEnv.create(systemName, host, port, conf, securityMgr)
-    val masterAddresses = masterUrls.map(RpcAddress.fromSparkURL(_))
+    val masterAddresses = masterUrls.map(RpcAddress.fromSparkURL)
     rpcEnv.setupEndpoint(ENDPOINT_NAME, new Worker(rpcEnv, webUiPort, cores, memory,
       masterAddresses, ENDPOINT_NAME, workDir, conf, securityMgr))
     rpcEnv

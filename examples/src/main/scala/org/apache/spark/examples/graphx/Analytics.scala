@@ -61,11 +61,11 @@ object Analytics extends Logging {
       sys.exit(1)
     }
     val partitionStrategy: Option[PartitionStrategy] = options.remove("partStrategy")
-      .map(PartitionStrategy.fromString(_))
+      .map(PartitionStrategy.fromString)
     val edgeStorageLevel = options.remove("edgeStorageLevel")
-      .map(StorageLevel.fromString(_)).getOrElse(StorageLevel.MEMORY_ONLY)
+      .map(StorageLevel.fromString).getOrElse(StorageLevel.MEMORY_ONLY)
     val vertexStorageLevel = options.remove("vertexStorageLevel")
-      .map(StorageLevel.fromString(_)).getOrElse(StorageLevel.MEMORY_ONLY)
+      .map(StorageLevel.fromString).getOrElse(StorageLevel.MEMORY_ONLY)
 
     taskType match {
       case "pagerank" =>
