@@ -19,7 +19,7 @@
 package org.apache.spark.examples.graphx
 
 /**
- * Example of a Connected Components algorithm to execute on the `LiveJournal` dataset.
+ * Use GraphX to run the Connected Components algorithm on a `LiveJournal` graph.
  * Download the dataset from https://snap.stanford.edu/data/com-LiveJournal.html.
  *
  * @author poffuomo
