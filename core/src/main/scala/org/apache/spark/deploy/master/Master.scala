@@ -17,25 +17,25 @@
 
 package org.apache.spark.deploy.master
 
-import java.text.{NumberFormat, SimpleDateFormat}
-import java.util.{Date, Locale}
+import java.text.SimpleDateFormat
 import java.util.concurrent.{ScheduledFuture, TimeUnit}
+import java.util.{Date, Locale}
 
-import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
-import scala.util.Random
-
-import org.apache.spark.{SecurityManager, SparkConf, SparkException}
-import org.apache.spark.deploy.{ApplicationDescription, DriverDescription, ExecutorState, SparkHadoopUtil}
 import org.apache.spark.deploy.DeployMessages._
 import org.apache.spark.deploy.master.DriverState.DriverState
 import org.apache.spark.deploy.master.MasterMessages._
 import org.apache.spark.deploy.master.ui.MasterWebUI
 import org.apache.spark.deploy.rest.StandaloneRestServer
+import org.apache.spark.deploy.{ApplicationDescription, DriverDescription, ExecutorState, SparkHadoopUtil}
 import org.apache.spark.internal.Logging
 import org.apache.spark.metrics.MetricsSystem
 import org.apache.spark.rpc._
 import org.apache.spark.serializer.{JavaSerializer, Serializer}
 import org.apache.spark.util.{ThreadUtils, Utils}
+import org.apache.spark.{SecurityManager, SparkConf, SparkException}
+
+import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
+import scala.util.Random
 
 private[deploy] class Master(
     override val rpcEnv: RpcEnv,
@@ -987,7 +987,7 @@ private[deploy] class Master(
       case Some(app) =>
         logInfo(s"Application $appId requested to set total executors to $requestedTotal. " +
           s"Current percentage of cores utilization: " +
-          s"${NumberFormat.getPercentInstance.format(getRatioUsedCores(app.coresGranted))}")
+          s"${Utils.doubleAsPercentage(getRatioUsedCores(app.coresGranted))}")
 
         // Adjust the number of executors
         app.executorLimit = requestedTotal
