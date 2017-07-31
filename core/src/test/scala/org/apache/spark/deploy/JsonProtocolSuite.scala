@@ -123,8 +123,9 @@ object JsonConstants {
 
   val appDescJsonStr =
     """
-      |{"name":"name","cores":4,"memoryperslave":1234,
-      |"user":"%s","command":"Command(mainClass,List(arg1, arg2),Map(),List(),List(),List())"}
+      |{"name":"name","cores":4,"minpercentageofcores":0.0,"maxpercentageofcores":1.0,
+      |"memoryperslave":1234,"user":"%s",
+      |"command":"Command(mainClass,List(arg1, arg2),Map(),List(),List(),List())"}
     """.format(System.getProperty("user.name", "<unknown>")).stripMargin
 
   val executorRunnerJsonStr =

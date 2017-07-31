@@ -399,6 +399,7 @@ class SparkSubmitSuite
     mainClass should be ("org.apache.spark.deploy.yarn.Client")
   }
 
+  // FIXME poffuomo: test failed
   test("launch simple application with spark-submit") {
     val unusedJar = TestUtils.createJarWithClasses(Seq.empty)
     val args = Seq(
@@ -411,6 +412,7 @@ class SparkSubmitSuite
     runSparkSubmit(args)
   }
 
+  // FIXME poffuomo: test failed
   test("launch simple application with spark-submit with redaction") {
     val testDir = Utils.createTempDir()
     testDir.deleteOnExit()
@@ -442,6 +444,7 @@ class SparkSubmitSuite
     }
   }
 
+  // FIXME poffuomo: test failed
   test("includes jars passed in through --jars") {
     val unusedJar = TestUtils.createJarWithClasses(Seq.empty)
     val jar1 = TestUtils.createJarWithClasses(Seq("SparkSubmitClassA"))
@@ -458,6 +461,7 @@ class SparkSubmitSuite
     runSparkSubmit(args)
   }
 
+  // FIXME poffuomo: test failed
   // SPARK-7287
   test("includes jars passed in through --packages") {
     val unusedJar = TestUtils.createJarWithClasses(Seq.empty)
@@ -478,6 +482,7 @@ class SparkSubmitSuite
     }
   }
 
+  // FIXME poffuomo: test failed
   test("includes jars passed through spark.jars.packages and spark.jars.repositories") {
     val unusedJar = TestUtils.createJarWithClasses(Seq.empty)
     val main = MavenCoordinate("my.great.lib", "mylib", "0.1")
