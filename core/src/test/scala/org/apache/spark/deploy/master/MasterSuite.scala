@@ -123,6 +123,7 @@ class MasterSuite extends SparkFunSuite
       desc = ApplicationDescription(
         name = "",
         maxCores = None,
+        minPercCores = None,
         maxPercCores = None,
         memoryPerExecutorMB = 0,
         command = commandToPersist,
@@ -541,7 +542,7 @@ class MasterSuite extends SparkFunSuite
       minPercCores: Option[Double] = None,
       maxPercCores: Option[Double] = None): ApplicationInfo = {
     val desc = ApplicationDescription(
-      "test", maxCores, maxPercCores, memoryPerExecutorMb, null, "", None, None,
+      "test", maxCores, minPercCores, maxPercCores, memoryPerExecutorMb, null, "", None, None,
       coresPerExecutor)
     val appId = System.currentTimeMillis.toString
     val endpointRef = mock(classOf[RpcEndpointRef])

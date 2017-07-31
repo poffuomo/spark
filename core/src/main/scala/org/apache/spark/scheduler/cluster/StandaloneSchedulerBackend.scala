@@ -56,6 +56,7 @@ private[spark] class StandaloneSchedulerBackend(
 
   private val maxCores = conf.getOption("spark.cores.max").map(_.toInt)
   private val totalExpectedCores = maxCores.getOrElse(0)
+  private val minPercCores = conf.getOption("spark.cores.minPercentage").map(_.toDouble)
   private val maxPercCores = conf.getOption("spark.cores.maxPercentage").map(_.toDouble)
 
   override def start() {
@@ -114,8 +115,9 @@ private[spark] class StandaloneSchedulerBackend(
       }
 
     // start the StandaloneAppClient
-    val appDesc = ApplicationDescription(sc.appName, maxCores, maxPercCores, sc.executorMemory,
-      command, webUrl, sc.eventLogDir, sc.eventLogCodec, coresPerExecutor, initialExecutorLimit)
+    val appDesc = ApplicationDescription(sc.appName, maxCores, minPercCores, maxPercCores,
+      sc.executorMemory, command, webUrl, sc.eventLogDir, sc.eventLogCodec, coresPerExecutor,
+      initialExecutorLimit)
     client = new StandaloneAppClient(sc.env.rpcEnv, masters, appDesc, this, conf)
     client.start()
     launcherBackend.setState(SparkAppHandle.State.SUBMITTED)

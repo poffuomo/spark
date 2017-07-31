@@ -68,7 +68,7 @@ class JsonProtocolSuite extends SparkFunSuite with JsonTestUtils {
     val completedApps = Array.empty[ApplicationInfo]
     val activeDrivers = Array(createDriverInfo())
     val completedDrivers = Array(createDriverInfo())
-    val stateResponse = new MasterStateResponse(
+    val stateResponse = MasterStateResponse(
       "host", 8080, None, workers, activeApps, completedApps,
       activeDrivers, completedDrivers, RecoveryState.ALIVE)
     val output = JsonProtocol.writeMasterState(stateResponse)
@@ -105,7 +105,8 @@ object JsonConstants {
   val appInfoJsonStr =
     """
       |{"id":"id","starttime":3,"name":"name",
-      |"cores":0,"user":"%s",
+      |"cores":0,"minpercentageofcores":0.0,
+      |"maxpercentageofcores":1.0,"user":"%s",
       |"memoryperslave":1234,"submitdate":"%s",
       |"state":"WAITING","duration":%d}
     """.format(System.getProperty("user.name", "<unknown>"),

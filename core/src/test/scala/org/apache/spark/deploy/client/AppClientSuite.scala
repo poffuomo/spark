@@ -223,8 +223,8 @@ class AppClientSuite
     val rpcEnv = RpcEnv.create("spark", Utils.localHostName(), 0, conf, securityManager)
     private val cmd = new Command(TestExecutor.getClass.getCanonicalName.stripSuffix("$"),
       List(), Map(), Seq(), Seq(), Seq())
-    private val desc =
-      new ApplicationDescription("AppClientSuite", Some(1), Some(1.0), 512, cmd, "ignored")
+    private val desc = new ApplicationDescription("AppClientSuite", Some(1), Some(0.0), Some(1.0),
+      512, cmd, "ignored")
     val listener = new AppClientCollector
     val client = new StandaloneAppClient(rpcEnv, Array(masterUrl), desc, listener, new SparkConf)
   }
