@@ -29,7 +29,7 @@ import org.apache.hadoop.fs._
 import org.scalatest.concurrent.AsyncAssertions._
 import org.scalatest.time.SpanSugar._
 
-import org.apache.spark.{SparkConf, SparkFunSuite}
+import org.apache.spark.SparkFunSuite
 import org.apache.spark.sql.execution.streaming.FakeFileSystem._
 import org.apache.spark.sql.execution.streaming.HDFSMetadataLog.{FileContextManager, FileManager, FileSystemManager}
 import org.apache.spark.sql.test.SharedSQLContext
@@ -123,7 +123,7 @@ class HDFSMetadataLogSuite extends SparkFunSuite with SharedSQLContext {
       // This check also tests for regressions of SPARK-17475
       val allFiles = new File(metadataLog.metadataPath.toString).listFiles().toSeq
       assert(allFiles.size == 1)
-      assert(allFiles(0).getName() == "2")
+      assert(allFiles.head.getName == "2")
     }
   }
 
