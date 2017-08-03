@@ -444,7 +444,6 @@ class SparkSubmitSuite
     }
   }
 
-  // FIXME poffuomo: test failed
   test("includes jars passed in through --jars") {
     val unusedJar = TestUtils.createJarWithClasses(Seq.empty)
     val jar1 = TestUtils.createJarWithClasses(Seq("SparkSubmitClassA"))
@@ -461,7 +460,6 @@ class SparkSubmitSuite
     runSparkSubmit(args)
   }
 
-  // FIXME poffuomo: test failed
   // SPARK-7287
   test("includes jars passed in through --packages") {
     val unusedJar = TestUtils.createJarWithClasses(Seq.empty)
@@ -482,7 +480,6 @@ class SparkSubmitSuite
     }
   }
 
-  // FIXME poffuomo: test failed
   test("includes jars passed through spark.jars.packages and spark.jars.repositories") {
     val unusedJar = TestUtils.createJarWithClasses(Seq.empty)
     val main = MavenCoordinate("my.great.lib", "mylib", "0.1")

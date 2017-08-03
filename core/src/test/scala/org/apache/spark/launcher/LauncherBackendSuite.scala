@@ -52,18 +52,18 @@ class LauncherBackendSuite extends SparkFunSuite with Matchers {
       .setConf(SparkLauncher.DRIVER_EXTRA_JAVA_OPTIONS, s"-Dtest.appender=console")
       .setMaster(master)
       .setAppResource(SparkLauncher.NO_RESOURCE)
-      .setMainClass(TestApp.getClass.getName().stripSuffix("$"))
+      .setMainClass(TestApp.getClass.getName.stripSuffix("$"))
       .startApplication()
 
     try {
       eventually(timeout(30 seconds), interval(100 millis)) {
-        handle.getAppId() should not be (null)
+        handle.getAppId should not be null
       }
 
       handle.stop()
 
       eventually(timeout(30 seconds), interval(100 millis)) {
-        handle.getState() should be (SparkAppHandle.State.KILLED)
+        handle.getState should be (SparkAppHandle.State.KILLED)
       }
     } finally {
       handle.kill()
