@@ -25,9 +25,8 @@ import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
 import scala.util.Random
 
 import org.apache.spark.{SecurityManager, SparkConf, SparkException}
-import org.apache.spark.deploy.{
-  ApplicationDescription, DriverDescription, ExecutorState, SparkHadoopUtil
-}
+import org.apache.spark.deploy.
+  {ApplicationDescription, DriverDescription, ExecutorState, SparkHadoopUtil}
 import org.apache.spark.deploy.DeployMessages._
 import org.apache.spark.deploy.master.DriverState.DriverState
 import org.apache.spark.deploy.master.MasterMessages._
@@ -37,7 +36,7 @@ import org.apache.spark.internal.Logging
 import org.apache.spark.metrics.MetricsSystem
 import org.apache.spark.rpc._
 import org.apache.spark.serializer.{JavaSerializer, Serializer}
-import org.apache.spark.util.{SparkUncaughtExceptionHandler, ThreadUtils, Utils}
+import org.apache.spark.util.{ThreadUtils, Utils}
 
 private[deploy] class Master(
     override val rpcEnv: RpcEnv,
@@ -586,12 +585,12 @@ private[deploy] class Master(
   private def rescheduleExecutors(): Unit = {
     val numFreeWorkers = workers.filterNot(_.isUsed).count(_.isAlive)
     val numStuckApps = waitingApps.count(_.isStuckWaiting)
-    val MinExecutorsToKeep = 1
+    val minExecutorsToKeep = 1
 
     if (numStuckApps > 0 && numFreeWorkers == 0) {
       // select some random running applications to make them free one of their executors
       val targetRunningApps = pickNRandom(
-        waitingApps.filter(_.isCurrentlyRunning).filter(_.executors.size > MinExecutorsToKeep),
+        waitingApps.filter(_.isCurrentlyRunning).filter(_.executors.size > minExecutorsToKeep),
         numStuckApps)
 
       for (app <- targetRunningApps) {
@@ -599,7 +598,7 @@ private[deploy] class Master(
         // application will get back the re-scheduled executor as soon as it loses it
         app.executorLimit = app.executors.size - 1
 
-        // the Executor is chosen randomly too among the ones associated with the app
+        // the Executor too is chosen randomly among the ones associated with the app
         val executorToRemove = pick1Random(app.executors.values)
 
         // send the kill message directly to the Worker related to the Executor
@@ -609,7 +608,7 @@ private[deploy] class Master(
 
     /**
       * Helper function to randomly select a fixed number of elements among the provided collection.
-      * Always returns a [[scala.collection.Seq Seq]].
+      * Always returns a [[scala.collection.Seq Seq]] of the chosen elements.
       *
       * @param coll Traversable collection from which to select the elements.
       * @param n Number of elements to select.
@@ -619,7 +618,7 @@ private[deploy] class Master(
       *         that `coll` contains at least `n` elements, otherwise all the elements of `coll`
       *         with a shuffled order).
       */
-    def pickNRandom[A](coll: Traversable[A], n: Int) = Random.shuffle(coll).take(n).toSeq
+    def pickNRandom[A](coll: Traversable[A], n: Int): Seq[A] = Random.shuffle(coll).take(n).toSeq
 
     /**
       * Helper function to randomly select exactly one element of the provided collection.
@@ -630,7 +629,7 @@ private[deploy] class Master(
       * @return A single element randomly taken from the input collection `coll` (given that `coll`
       *         contains at least one element).
       */
-    def pick1Random[A](coll: Traversable[A]) = pickNRandom(coll, 1).head
+    def pick1Random[A](coll: Traversable[A]): A = pickNRandom(coll, 1).head
   }
 
   /**
@@ -988,7 +987,7 @@ private[deploy] class Master(
     idToApp.get(appId) match {
       case Some(app) =>
         logInfo(s"Application $appId requested to set total executors to $requestedTotal. " +
-          s"Current percentage of cores utilization: " +
+          s"Current percentage of cores utilization by the app: " +
           s"${Utils.doubleAsPercentage(getRatioUsedCores(app.coresGranted))}")
 
         // Adjust the number of executors
@@ -1029,6 +1028,7 @@ private[deploy] class Master(
     * @param app Application for which to update the limit on the number of cores to allocate.
     * @return The maximum number of cores that can be allocated to the application given the
     *         allowed maximum percentage, rounded to the closest bigger integer.
+    * @author Manfredi Giordano
     */
   private def getCoresLimit(app: ApplicationInfo): Int = {
     val anyRegisteredWorker = getNumExistingCores > 0
@@ -1040,9 +1040,9 @@ private[deploy] class Master(
             case 0.0 =>
               // the app has been requested to run with 0% of the cores
               0
-            case perc: Double if perc > 1.0 =>
+            case perc if perc > 1.0 =>
               fixedLimit
-            case perc: Double =>
+            case perc =>
               math.min((perc * getNumExistingCores).ceil.toInt, fixedLimit)
           }
       case Some(_) if !anyRegisteredWorker =>
@@ -1235,8 +1235,6 @@ private[deploy] object Master extends Logging {
   val ENDPOINT_NAME = "Master"
 
   def main(argStrings: Array[String]) {
-    Thread.setDefaultUncaughtExceptionHandler(new SparkUncaughtExceptionHandler(
-      exitOnUncaughtException = false))
     Utils.initDaemon(log)
     val conf = new SparkConf
     val args = new MasterArguments(argStrings, conf)

@@ -91,7 +91,7 @@ class StandaloneDynamicAllocationSuite
     sc = new SparkContext(appConf)
     val appId = sc.applicationId
     eventually(timeout(10.seconds), interval(10.millis)) {
-      val apps = getApplications()
+      val apps = getApplications
       assert(apps.size === 1)
       assert(apps.head.id === appId)
       assert(apps.head.executors.size === 2)
@@ -99,37 +99,37 @@ class StandaloneDynamicAllocationSuite
     }
     // kill all executors
     assert(killAllExecutors(sc))
-    var apps = getApplications()
+    var apps = getApplications
     assert(apps.head.executors.size === 0)
     assert(apps.head.getExecutorLimit === 0)
     // request 1
     assert(sc.requestExecutors(1))
-    apps = getApplications()
+    apps = getApplications
     assert(apps.head.executors.size === 1)
     assert(apps.head.getExecutorLimit === 1)
     // request 1 more
     assert(sc.requestExecutors(1))
-    apps = getApplications()
+    apps = getApplications
     assert(apps.head.executors.size === 2)
     assert(apps.head.getExecutorLimit === 2)
     // request 1 more; this one won't go through
     assert(sc.requestExecutors(1))
-    apps = getApplications()
+    apps = getApplications
     assert(apps.head.executors.size === 2)
     assert(apps.head.getExecutorLimit === 3)
     // kill all existing executors; we should end up with 3 - 2 = 1 executor
     assert(killAllExecutors(sc))
-    apps = getApplications()
+    apps = getApplications
     assert(apps.head.executors.size === 1)
     assert(apps.head.getExecutorLimit === 1)
     // kill all executors again; this time we'll have 1 - 1 = 0 executors left
     assert(killAllExecutors(sc))
-    apps = getApplications()
+    apps = getApplications
     assert(apps.head.executors.size === 0)
     assert(apps.head.getExecutorLimit === 0)
     // request many more; this increases the limit well beyond the cluster capacity
     assert(sc.requestExecutors(1000))
-    apps = getApplications()
+    apps = getApplications
     assert(apps.head.executors.size === 2)
     assert(apps.head.getExecutorLimit === 1000)
   }
@@ -138,7 +138,7 @@ class StandaloneDynamicAllocationSuite
     sc = new SparkContext(appConf.set("spark.cores.max", "8"))
     val appId = sc.applicationId
     eventually(timeout(10.seconds), interval(10.millis)) {
-      val apps = getApplications()
+      val apps = getApplications
       assert(apps.size === 1)
       assert(apps.head.id === appId)
       assert(apps.head.executors.size === 2)
@@ -147,12 +147,12 @@ class StandaloneDynamicAllocationSuite
     }
     // kill all executors
     assert(killAllExecutors(sc))
-    var apps = getApplications()
+    var apps = getApplications
     assert(apps.head.executors.size === 0)
     assert(apps.head.getExecutorLimit === 0)
     // request 1
     assert(sc.requestExecutors(1))
-    apps = getApplications()
+    apps = getApplications
     assert(apps.head.executors.size === 1)
     assert(apps.head.executors.values.head.cores === 8)
     assert(apps.head.getExecutorLimit === 1)
@@ -161,29 +161,29 @@ class StandaloneDynamicAllocationSuite
     // setting cores per executor: once an application scales down and then scales back
     // up, its executors may not be spread out anymore!
     assert(sc.requestExecutors(1))
-    apps = getApplications()
+    apps = getApplications
     assert(apps.head.executors.size === 1)
     assert(apps.head.getExecutorLimit === 2)
     // request 1 more; this one also won't go through for the same reason
     assert(sc.requestExecutors(1))
-    apps = getApplications()
+    apps = getApplications
     assert(apps.head.executors.size === 1)
     assert(apps.head.getExecutorLimit === 3)
     // kill all existing executors; we should end up with 3 - 1 = 2 executor
     // Note: we scheduled these executors together, so their cores should be evenly distributed
     assert(killAllExecutors(sc))
-    apps = getApplications()
+    apps = getApplications
     assert(apps.head.executors.size === 2)
     assert(apps.head.executors.values.map(_.cores).toArray === Array(4, 4))
     assert(apps.head.getExecutorLimit === 2)
     // kill all executors again; this time we'll have 1 - 1 = 0 executors left
     assert(killAllExecutors(sc))
-    apps = getApplications()
+    apps = getApplications
     assert(apps.head.executors.size === 0)
     assert(apps.head.getExecutorLimit === 0)
     // request many more; this increases the limit well beyond the cluster capacity
     assert(sc.requestExecutors(1000))
-    apps = getApplications()
+    apps = getApplications
     assert(apps.head.executors.size === 2)
     assert(apps.head.executors.values.map(_.cores).toArray === Array(4, 4))
     assert(apps.head.getExecutorLimit === 1000)
@@ -193,7 +193,7 @@ class StandaloneDynamicAllocationSuite
     sc = new SparkContext(appConf.set("spark.cores.max", "16"))
     val appId = sc.applicationId
     eventually(timeout(10.seconds), interval(10.millis)) {
-      val apps = getApplications()
+      val apps = getApplications
       assert(apps.size === 1)
       assert(apps.head.id === appId)
       assert(apps.head.executors.size === 2)
@@ -202,41 +202,41 @@ class StandaloneDynamicAllocationSuite
     }
     // kill all executors
     assert(killAllExecutors(sc))
-    var apps = getApplications()
+    var apps = getApplications
     assert(apps.head.executors.size === 0)
     assert(apps.head.getExecutorLimit === 0)
     // request 1
     assert(sc.requestExecutors(1))
-    apps = getApplications()
+    apps = getApplications
     assert(apps.head.executors.size === 1)
     assert(apps.head.executors.values.head.cores === 10)
     assert(apps.head.getExecutorLimit === 1)
     // request 1 more
     // Note: the cores are not evenly distributed because we scheduled these executors 1 by 1
     assert(sc.requestExecutors(1))
-    apps = getApplications()
+    apps = getApplications
     assert(apps.head.executors.size === 2)
     assert(apps.head.executors.values.map(_.cores).toSet === Set(10, 6))
     assert(apps.head.getExecutorLimit === 2)
     // request 1 more; this one won't go through
     assert(sc.requestExecutors(1))
-    apps = getApplications()
+    apps = getApplications
     assert(apps.head.executors.size === 2)
     assert(apps.head.getExecutorLimit === 3)
     // kill all existing executors; we should end up with 3 - 2 = 1 executor
     assert(killAllExecutors(sc))
-    apps = getApplications()
+    apps = getApplications
     assert(apps.head.executors.size === 1)
     assert(apps.head.executors.values.head.cores === 10)
     assert(apps.head.getExecutorLimit === 1)
     // kill all executors again; this time we'll have 1 - 1 = 0 executors left
     assert(killAllExecutors(sc))
-    apps = getApplications()
+    apps = getApplications
     assert(apps.head.executors.size === 0)
     assert(apps.head.getExecutorLimit === 0)
     // request many more; this increases the limit well beyond the cluster capacity
     assert(sc.requestExecutors(1000))
-    apps = getApplications()
+    apps = getApplications
     assert(apps.head.executors.size === 2)
     assert(apps.head.executors.values.map(_.cores).toArray === Array(8, 8))
     assert(apps.head.getExecutorLimit === 1000)
@@ -246,7 +246,7 @@ class StandaloneDynamicAllocationSuite
     sc = new SparkContext(appConf.set("spark.executor.cores", "2"))
     val appId = sc.applicationId
     eventually(timeout(10.seconds), interval(10.millis)) {
-      val apps = getApplications()
+      val apps = getApplications
       assert(apps.size === 1)
       assert(apps.head.id === appId)
       assert(apps.head.executors.size === 10) // 20 cores total
@@ -254,42 +254,42 @@ class StandaloneDynamicAllocationSuite
     }
     // kill all executors
     assert(killAllExecutors(sc))
-    var apps = getApplications()
+    var apps = getApplications
     assert(apps.head.executors.size === 0)
     assert(apps.head.getExecutorLimit === 0)
     // request 1
     assert(sc.requestExecutors(1))
-    apps = getApplications()
+    apps = getApplications
     assert(apps.head.executors.size === 1)
     assert(apps.head.getExecutorLimit === 1)
     // request 3 more
     assert(sc.requestExecutors(3))
-    apps = getApplications()
+    apps = getApplications
     assert(apps.head.executors.size === 4)
     assert(apps.head.getExecutorLimit === 4)
     // request 10 more; only 6 will go through
     assert(sc.requestExecutors(10))
-    apps = getApplications()
+    apps = getApplications
     assert(apps.head.executors.size === 10)
     assert(apps.head.getExecutorLimit === 14)
     // kill 2 executors; we should get 2 back immediately
     assert(killNExecutors(sc, 2))
-    apps = getApplications()
+    apps = getApplications
     assert(apps.head.executors.size === 10)
     assert(apps.head.getExecutorLimit === 12)
     // kill 4 executors; we should end up with 12 - 4 = 8 executors
     assert(killNExecutors(sc, 4))
-    apps = getApplications()
+    apps = getApplications
     assert(apps.head.executors.size === 8)
     assert(apps.head.getExecutorLimit === 8)
     // kill all executors; this time we'll have 8 - 8 = 0 executors left
     assert(killAllExecutors(sc))
-    apps = getApplications()
+    apps = getApplications
     assert(apps.head.executors.size === 0)
     assert(apps.head.getExecutorLimit === 0)
     // request many more; this increases the limit well beyond the cluster capacity
     assert(sc.requestExecutors(1000))
-    apps = getApplications()
+    apps = getApplications
     assert(apps.head.executors.size === 10)
     assert(apps.head.getExecutorLimit === 1000)
   }
@@ -300,7 +300,7 @@ class StandaloneDynamicAllocationSuite
       .set("spark.cores.max", "8"))
     val appId = sc.applicationId
     eventually(timeout(10.seconds), interval(10.millis)) {
-      val apps = getApplications()
+      val apps = getApplications
       assert(apps.size === 1)
       assert(apps.head.id === appId)
       assert(apps.head.executors.size === 4) // 8 cores total
@@ -308,49 +308,102 @@ class StandaloneDynamicAllocationSuite
     }
     // kill all executors
     assert(killAllExecutors(sc))
-    var apps = getApplications()
+    var apps = getApplications
     assert(apps.head.executors.size === 0)
     assert(apps.head.getExecutorLimit === 0)
     // request 1
     assert(sc.requestExecutors(1))
-    apps = getApplications()
+    apps = getApplications
     assert(apps.head.executors.size === 1)
     assert(apps.head.getExecutorLimit === 1)
     // request 3 more
     assert(sc.requestExecutors(3))
-    apps = getApplications()
+    apps = getApplications
     assert(apps.head.executors.size === 4)
     assert(apps.head.getExecutorLimit === 4)
     // request 10 more; none will go through
     assert(sc.requestExecutors(10))
-    apps = getApplications()
+    apps = getApplications
     assert(apps.head.executors.size === 4)
     assert(apps.head.getExecutorLimit === 14)
     // kill all executors; 4 executors will be launched immediately
     assert(killAllExecutors(sc))
-    apps = getApplications()
+    apps = getApplications
     assert(apps.head.executors.size === 4)
     assert(apps.head.getExecutorLimit === 10)
     // ... and again
     assert(killAllExecutors(sc))
-    apps = getApplications()
+    apps = getApplications
     assert(apps.head.executors.size === 4)
     assert(apps.head.getExecutorLimit === 6)
     // ... and again; now we end up with 6 - 4 = 2 executors left
     assert(killAllExecutors(sc))
-    apps = getApplications()
+    apps = getApplications
     assert(apps.head.executors.size === 2)
     assert(apps.head.getExecutorLimit === 2)
     // ... and again; this time we have 2 - 2 = 0 executors left
     assert(killAllExecutors(sc))
-    apps = getApplications()
+    apps = getApplications
     assert(apps.head.executors.size === 0)
     assert(apps.head.getExecutorLimit === 0)
     // request many more; this increases the limit well beyond the cluster capacity
     assert(sc.requestExecutors(1000))
-    apps = getApplications()
+    apps = getApplications
     assert(apps.head.executors.size === 4)
     assert(apps.head.getExecutorLimit === 1000)
+  }
+
+  test("dynamic allocation with max percentage of cores") {
+    val perc = 0.5
+    sc = new SparkContext(appConf
+      .set("spark.cores.maxPercentage", s"$perc"))
+    val appId = sc.applicationId
+    eventually(timeout(10.seconds), interval(10.millis)) {
+      val apps = getApplications
+      assert(apps.size === 1)
+      assert(apps.head.id === appId)
+      assert(apps.head.executors.size === 2) // 2 out of 4
+      assert(apps.head.getExecutorLimit === Int.MaxValue)
+    }
+    // kill all executors
+    assert(killAllExecutors(sc))
+    var apps = getApplications
+    assert(apps.head.executors.size === 0)
+    assert(apps.head.getExecutorLimit === 0)
+    // request 1
+    assert(sc.requestExecutors(1))
+    apps = getApplications
+    assert(apps.head.executors.size === 1) // 1 out of 1
+    assert(apps.head.getExecutorLimit === 1)
+    var expectedCores = (getMasterState.workers.map(_.cores).sum * perc).ceil.toInt // as 
+    assert(apps.head.coresGranted === expectedCores)
+    // request 1 more
+    assert(sc.requestExecutors(1))
+    apps = getApplications
+    assert(apps.head.executors.size === 1) // 1 out of 2
+    assert(apps.head.getExecutorLimit === 2)
+    expectedCores = (getMasterState.workers.map(_.cores).sum * perc).ceil.toInt
+    assert(apps.head.coresGranted === expectedCores)
+    // request 1 more; this one won't go through
+//    assert(sc.requestExecutors(1))
+//    apps = getApplications
+//    assert(apps.head.executors.size === 2)
+//    assert(apps.head.getExecutorLimit === 3)
+    //    // kill all existing executors; we should end up with 3 - 2 = 1 executor
+    //    assert(killAllExecutors(sc))
+    //    apps = getApplications
+    //    assert(apps.head.executors.size === 1)
+    //    assert(apps.head.getExecutorLimit === 1)
+    //    // kill all executors again; this time we'll have 1 - 1 = 0 executors left
+    //    assert(killAllExecutors(sc))
+    //    apps = getApplications
+    //    assert(apps.head.executors.size === 0)
+    //    assert(apps.head.getExecutorLimit === 0)
+    //    // request many more; this increases the limit well beyond the cluster capacity
+    //    assert(sc.requestExecutors(1000))
+    //    apps = getApplications
+    //    assert(apps.head.executors.size === 2)
+    //    assert(apps.head.getExecutorLimit === 1000)
   }
 
   test("kill the same executor twice (SPARK-9795)") {
@@ -358,7 +411,7 @@ class StandaloneDynamicAllocationSuite
     val appId = sc.applicationId
     sc.requestExecutors(2)
     eventually(timeout(10.seconds), interval(10.millis)) {
-      val apps = getApplications()
+      val apps = getApplications
       assert(apps.size === 1)
       assert(apps.head.id === appId)
       assert(apps.head.executors.size === 2)
@@ -372,7 +425,7 @@ class StandaloneDynamicAllocationSuite
     assert(executors.size === 2)
     assert(sc.killExecutor(executors.head))
     assert(!sc.killExecutor(executors.head))
-    val apps = getApplications()
+    val apps = getApplications
     assert(apps.head.executors.size === 1)
     // The limit should not be lowered twice
     assert(apps.head.getExecutorLimit === 1)
@@ -383,7 +436,7 @@ class StandaloneDynamicAllocationSuite
     val appId = sc.applicationId
     sc.requestExecutors(2)
     eventually(timeout(10.seconds), interval(10.millis)) {
-      val apps = getApplications()
+      val apps = getApplications
       assert(apps.size === 1)
       assert(apps.head.id === appId)
       assert(apps.head.executors.size === 2)
@@ -398,7 +451,7 @@ class StandaloneDynamicAllocationSuite
     // kill and replace an executor
     assert(sc.killAndReplaceExecutor(executors.head))
     eventually(timeout(10.seconds), interval(10.millis)) {
-      val apps = getApplications()
+      val apps = getApplications
       assert(apps.head.executors.size === 2)
       val executorIdsAfter = getExecutorIds(sc).toSet
       // make sure the executor was killed and replaced
@@ -414,7 +467,7 @@ class StandaloneDynamicAllocationSuite
 
     // kill newly created executor and do not replace it
     assert(sc.killExecutor(newExecutors(1)))
-    val apps = getApplications()
+    val apps = getApplications
     assert(apps.head.executors.size === 1)
     assert(apps.head.getExecutorLimit === 1)
   }
@@ -423,13 +476,13 @@ class StandaloneDynamicAllocationSuite
     sc = new SparkContext(appConf)
     val appId = sc.applicationId
     eventually(timeout(10.seconds), interval(10.millis)) {
-      val apps = getApplications()
+      val apps = getApplications
       assert(apps.size === 1)
       assert(apps.head.id === appId)
       assert(apps.head.executors.size === 2)
       assert(apps.head.getExecutorLimit === Int.MaxValue)
     }
-    var apps = getApplications()
+    var apps = getApplications
     // sync executors between the Master and the driver, needed because
     // the driver refuses to kill executors it does not know about
     syncExecutors(sc)
@@ -444,12 +497,12 @@ class StandaloneDynamicAllocationSuite
     executorIdToRunningTaskIds(executors.head) = mutable.HashSet(1L)
     // kill the busy executor without force; this should fail
     assert(killExecutor(sc, executors.head, force = false).isEmpty)
-    apps = getApplications()
+    apps = getApplications
     assert(apps.head.executors.size === 2)
 
     // force kill busy executor
     assert(killExecutor(sc, executors.head, force = true).nonEmpty)
-    apps = getApplications()
+    apps = getApplications
     // kill executor successfully
     assert(apps.head.executors.size === 1)
   }
@@ -463,7 +516,7 @@ class StandaloneDynamicAllocationSuite
     sc = new SparkContext(myConf)
     val appId = sc.applicationId
     eventually(timeout(10.seconds), interval(10.millis)) {
-      val apps = getApplications()
+      val apps = getApplications
       assert(apps.size === 1)
       assert(apps.head.id === appId)
       assert(apps.head.executors.size === initialExecutorLimit)
@@ -475,20 +528,20 @@ class StandaloneDynamicAllocationSuite
     sc = new SparkContext(appConf)
     val appId = sc.applicationId
     eventually(timeout(10.seconds), interval(10.millis)) {
-      val apps = getApplications()
+      val apps = getApplications
       assert(apps.size === 1)
       assert(apps.head.id === appId)
       assert(apps.head.executors.size === 2)
       assert(apps.head.getExecutorLimit === Int.MaxValue)
     }
-    val beforeList = getApplications().head.executors.keys.toSet
+    val beforeList = getApplications.head.executors.keys.toSet
     assert(killExecutorsOnHost(sc, "localhost").equals(true))
 
     syncExecutors(sc)
-    val afterList = getApplications().head.executors.keys.toSet
+    val afterList = getApplications.head.executors.keys.toSet
 
     eventually(timeout(10.seconds), interval(100.millis)) {
-      assert(beforeList.intersect(afterList).size == 0)
+      assert(beforeList.intersect(afterList).isEmpty)
     }
   }
 
@@ -516,6 +569,7 @@ class StandaloneDynamicAllocationSuite
       verify(endpointRef).send(RegisterExecutorFailed(any()))
     }
   }
+
 
   // ===============================
   // | Utility methods for testing |
@@ -553,7 +607,7 @@ class StandaloneDynamicAllocationSuite
   }
 
   /** Get the applications that are active from Master */
-  private def getApplications(): Seq[ApplicationInfo] = {
+  private def getApplications: Seq[ApplicationInfo] = {
     getMasterState.activeApps
   }
 
@@ -596,7 +650,7 @@ class StandaloneDynamicAllocationSuite
    * don't wait for executors to register. Otherwise the tests will take much longer to run.
    */
   private def getExecutorIds(sc: SparkContext): Seq[String] = {
-    val app = getApplications().find(_.id == sc.applicationId)
+    val app = getApplications.find(_.id == sc.applicationId)
     assert(app.isDefined)
     // Although executors is transient, master is in the same process so the message won't be
     // serialized and it's safe here.

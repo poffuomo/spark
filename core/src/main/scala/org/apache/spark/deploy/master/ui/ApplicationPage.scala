@@ -17,13 +17,12 @@
 
 package org.apache.spark.deploy.master.ui
 
-import java.text.NumberFormat
 import javax.servlet.http.HttpServletRequest
 
 import scala.xml.Node
 
-import org.apache.spark.deploy.DeployMessages.{MasterStateResponse, RequestMasterState}
 import org.apache.spark.deploy.ExecutorState
+import org.apache.spark.deploy.DeployMessages.{MasterStateResponse, RequestMasterState}
 import org.apache.spark.deploy.master.ExecutorDesc
 import org.apache.spark.ui.{ToolTips, UIUtils, WebUIPage}
 import org.apache.spark.util.Utils
@@ -54,9 +53,6 @@ private[ui] class ApplicationPage(parent: MasterWebUI) extends WebUIPage("app") 
     val executorsTable = UIUtils.listingTable(executorHeaders, executorRow, executors)
     val removedExecutorsTable = UIUtils.listingTable(executorHeaders, executorRow, removedExecutors)
 
-    val maxCores = app.desc.maxCores
-    val maxPercCores = app.desc.maxPercCores
-
     val content =
       <div class="row-fluid">
         <div class="span12">
@@ -66,7 +62,7 @@ private[ui] class ApplicationPage(parent: MasterWebUI) extends WebUIPage("app") 
             <li><strong>User:</strong> {app.desc.user}</li>
             <li><strong>Cores:</strong>
             {
-              (maxCores, maxPercCores) match {
+              (app.desc.maxCores, app.desc.maxPercCores) match {
                 case (Some(maxCores), Some(maxPercCores)) =>
                   "%s (max %s of the cluster, %s granted, %s left)".format(
                     maxCores, Utils.doubleAsPercentage(maxPercCores), app.coresGranted,
