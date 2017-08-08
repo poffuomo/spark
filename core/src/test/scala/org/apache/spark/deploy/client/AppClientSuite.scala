@@ -91,7 +91,7 @@ class AppClientSuite
 
     // Client should connect with one Master which registers the application
     eventually(timeout(10.seconds), interval(10.millis)) {
-      val apps = getApplications()
+      val apps = getApplications
       assert(ci.listener.connectedIdList.size === 1, "client listener should have one connection")
       assert(apps.size === 1, "master should have 1 registered app")
     }
@@ -106,12 +106,12 @@ class AppClientSuite
     }
 
     eventually(timeout(10.seconds), interval(10.millis)) {
-      val apps = getApplications()
+      val apps = getApplications
       assert(apps.head.getExecutorLimit === numExecutorsRequested, "executor request failed")
     }
 
     // Send request to kill executor, verify request was made
-    val executorId: String = getApplications().head.executors.head._2.fullId
+    val executorId: String = getApplications.head.executors.head._2.fullId
     whenReady(
         ci.client.killExecutors(Seq(executorId)),
         timeout(10.seconds),
@@ -124,7 +124,7 @@ class AppClientSuite
 
     // Verify Client is marked dead and unregistered from Master
     eventually(timeout(10.seconds), interval(10.millis)) {
-      val apps = getApplications()
+      val apps = getApplications
       assert(ci.listener.deadReasonList.size === 1, "client should have been marked dead")
       assert(apps.isEmpty, "master should have 0 registered apps")
     }
@@ -175,7 +175,7 @@ class AppClientSuite
   }
 
   /** Get the applications that are active from Master */
-  private def getApplications(): Seq[ApplicationInfo] = {
+  private def getApplications: Seq[ApplicationInfo] = {
     getMasterState.activeApps
   }
 

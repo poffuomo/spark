@@ -17,7 +17,6 @@
 
 package org.apache.spark
 
-import java.text.NumberFormat
 import java.util.concurrent.TimeUnit
 
 import scala.collection.mutable
@@ -27,8 +26,7 @@ import scala.util.control.{ControlThrowable, NonFatal}
 import com.codahale.metrics.{Gauge, MetricRegistry}
 
 import org.apache.spark.internal.Logging
-import org.apache.spark.internal.config.{
-  DYN_ALLOCATION_MAX_EXECUTORS, DYN_ALLOCATION_MAX_PERC_EXECUTORS, DYN_ALLOCATION_MIN_EXECUTORS}
+import org.apache.spark.internal.config.{DYN_ALLOCATION_MAX_EXECUTORS, DYN_ALLOCATION_MIN_EXECUTORS}
 import org.apache.spark.metrics.source.Source
 import org.apache.spark.scheduler._
 import org.apache.spark.util.{Clock, SystemClock, ThreadUtils, Utils}
@@ -197,7 +195,7 @@ private[spark] class ExecutorAllocationManager(
       throw new SparkException("spark.dynamicAllocation.executorIdleTimeout must be > 0!")
     }
     // Don't require external shuffle service for dynamic allocation even if we may lose
-    // shuffle files when re-allocating executors
+    // shuffle files when re-allocating executors. Trades speed for reliability
     if (Utils.isDynamicAllocationEnabled(conf)
         && !conf.getBoolean("spark.shuffle.service.enabled", false) && !testing) {
       logWarning("Using dynamic allocation of executors without the external shuffle service. " +

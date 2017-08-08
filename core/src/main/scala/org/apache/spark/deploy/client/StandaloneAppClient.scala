@@ -49,7 +49,7 @@ private[spark] class StandaloneAppClient(
     conf: SparkConf)
   extends Logging {
 
-  private val masterRpcAddresses = masterUrls.map(RpcAddress.fromSparkURL(_))
+  private val masterRpcAddresses = masterUrls.map(RpcAddress.fromSparkURL)
 
   private val REGISTRATION_TIMEOUT_SECONDS = 20
   private val REGISTRATION_RETRIES = 3

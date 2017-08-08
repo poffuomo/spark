@@ -606,7 +606,7 @@ class ExecutorAllocationManagerSuite
     assert(addTime(manager) !== NOT_SET)
 
     // Starting a subset of the tasks should not cancel the add timer
-    val taskInfos = (0 to numTasks - 1).map { i => createTaskInfo(i, i, "executor-1") }
+    val taskInfos = (0 until numTasks).map { i => createTaskInfo(i, i, "executor-1") }
     taskInfos.tail.foreach { info => sc.listenerBus.postToAll(SparkListenerTaskStart(0, 0, info)) }
     assert(addTime(manager) !== NOT_SET)
 

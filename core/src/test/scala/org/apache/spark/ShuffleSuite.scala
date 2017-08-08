@@ -24,12 +24,12 @@ import org.scalatest.Matchers
 
 import org.apache.spark.ShuffleSuite.NonJavaSerializableClass
 import org.apache.spark.memory.TaskMemoryManager
-import org.apache.spark.rdd.{CoGroupedRDD, OrderedRDDFunctions, RDD, ShuffledRDD, SubtractedRDD}
+import org.apache.spark.rdd._
 import org.apache.spark.scheduler.{MapStatus, MyRDD, SparkListener, SparkListenerTaskEnd}
 import org.apache.spark.serializer.KryoSerializer
 import org.apache.spark.shuffle.ShuffleWriter
 import org.apache.spark.storage.{ShuffleBlockId, ShuffleDataBlockId, ShuffleIndexBlockId}
-import org.apache.spark.util.{MutablePair, Utils}
+import org.apache.spark.util.MutablePair
 
 abstract class ShuffleSuite extends SparkFunSuite with Matchers with LocalSparkContext {
 
@@ -44,7 +44,7 @@ abstract class ShuffleSuite extends SparkFunSuite with Matchers with LocalSparkC
     sc = new SparkContext("local", "test", myConf)
     val pairs = sc.parallelize(Array((1, 1), (1, 2), (1, 3), (2, 1)), 4)
     val groups = pairs.groupByKey(4).collect()
-    assert(groups.size === 2)
+    assert(groups.length === 2)
     val valuesFor1 = groups.find(_._1 == 1).get._2
     assert(valuesFor1.toList.sorted === List(1, 2, 3))
     val valuesFor2 = groups.find(_._1 == 2).get._2
@@ -207,7 +207,7 @@ abstract class ShuffleSuite extends SparkFunSuite with Matchers with LocalSparkC
     val pairs1: RDD[MutablePair[Int, Int]] = sc.parallelize(data1, 2)
     val pairs2: RDD[MutablePair[Int, String]] = sc.parallelize(data2, 2)
     val results = new SubtractedRDD(pairs1, pairs2, new HashPartitioner(2)).collect()
-    results should have length (1)
+    results should have length 1
     // substracted rdd return results as Tuple2
     results(0) should be ((3, 33))
   }
@@ -275,9 +275,9 @@ abstract class ShuffleSuite extends SparkFunSuite with Matchers with LocalSparkC
     rdd.count()
 
     // Delete one of the local shuffle blocks.
-    val hashFile = sc.env.blockManager.diskBlockManager.getFile(new ShuffleBlockId(0, 0, 0))
-    val sortFile = sc.env.blockManager.diskBlockManager.getFile(new ShuffleDataBlockId(0, 0, 0))
-    val indexFile = sc.env.blockManager.diskBlockManager.getFile(new ShuffleIndexBlockId(0, 0, 0))
+    val hashFile = sc.env.blockManager.diskBlockManager.getFile(ShuffleBlockId(0, 0, 0))
+    val sortFile = sc.env.blockManager.diskBlockManager.getFile(ShuffleDataBlockId(0, 0, 0))
+    val indexFile = sc.env.blockManager.diskBlockManager.getFile(ShuffleIndexBlockId(0, 0, 0))
     assert(hashFile.exists() || (sortFile.exists() && indexFile.exists()))
 
     if (hashFile.exists()) {
@@ -299,20 +299,17 @@ abstract class ShuffleSuite extends SparkFunSuite with Matchers with LocalSparkC
     val rdd = sc.parallelize(1 to 10, 1).map((_, 1)).reduceByKey(_ + _)
 
     // Cannot find one of the local shuffle blocks.
-    val hashFile = sc.env.blockManager.diskBlockManager.getFile(new ShuffleBlockId(0, 0, 0))
-    val sortFile = sc.env.blockManager.diskBlockManager.getFile(new ShuffleDataBlockId(0, 0, 0))
-    val indexFile = sc.env.blockManager.diskBlockManager.getFile(new ShuffleIndexBlockId(0, 0, 0))
+    val hashFile = sc.env.blockManager.diskBlockManager.getFile(ShuffleBlockId(0, 0, 0))
+    val sortFile = sc.env.blockManager.diskBlockManager.getFile(ShuffleDataBlockId(0, 0, 0))
+    val indexFile = sc.env.blockManager.diskBlockManager.getFile(ShuffleIndexBlockId(0, 0, 0))
     assert(!hashFile.exists() && !sortFile.exists() && !indexFile.exists())
 
     rdd.count()
 
     // Can find one of the local shuffle blocks.
-    val hashExistsFile = sc.env.blockManager.diskBlockManager
-      .getFile(new ShuffleBlockId(0, 0, 0))
-    val sortExistsFile = sc.env.blockManager.diskBlockManager
-      .getFile(new ShuffleDataBlockId(0, 0, 0))
-    val indexExistsFile = sc.env.blockManager.diskBlockManager
-      .getFile(new ShuffleIndexBlockId(0, 0, 0))
+    val hashExistsFile = sc.env.blockManager.diskBlockManager.getFile(ShuffleBlockId(0, 0, 0))
+    val sortExistsFile = sc.env.blockManager.diskBlockManager.getFile(ShuffleDataBlockId(0, 0, 0))
+    val indexExistsFile = sc.env.blockManager.diskBlockManager.getFile(ShuffleIndexBlockId(0, 0, 0))
     assert(hashExistsFile.exists() || (sortExistsFile.exists() && indexExistsFile.exists()))
   }
 
@@ -400,7 +397,7 @@ abstract class ShuffleSuite extends SparkFunSuite with Matchers with LocalSparkC
     val reader = manager.getReader[Int, Int](shuffleHandle, 0, 1,
       new TaskContextImpl(1, 0, 2L, 0, taskMemoryManager, new Properties, metricsSystem))
     val readData = reader.read().toIndexedSeq
-    assert(readData === data1.toIndexedSeq || readData === data2.toIndexedSeq)
+    assert(readData === data1 || readData === data2)
 
     manager.unregisterShuffle(0)
   }
