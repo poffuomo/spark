@@ -355,8 +355,7 @@ class StandaloneDynamicAllocationSuite
 
   test("dynamic allocation with max percentage of cores") {
     val perc = 0.5
-    sc = new SparkContext(appConf
-      .set("spark.cores.maxPercentage", s"$perc"))
+    sc = new SparkContext(appConf.set("spark.cores.maxPercentage", perc.toString))
     val appId = sc.applicationId
     eventually(timeout(10.seconds), interval(10.millis)) {
       val apps = getApplications
@@ -375,35 +374,16 @@ class StandaloneDynamicAllocationSuite
     apps = getApplications
     assert(apps.head.executors.size === 1) // 1 out of 1
     assert(apps.head.getExecutorLimit === 1)
-    var expectedCores = (getMasterState.workers.map(_.cores).sum * perc).ceil.toInt // as 
+    var expectedCores = (getMasterState.workers.map(_.cores).sum * perc).ceil.toInt
     assert(apps.head.coresGranted === expectedCores)
-    // request 1 more
+    // request 1 more: it won't get through
     assert(sc.requestExecutors(1))
     apps = getApplications
     assert(apps.head.executors.size === 1) // 1 out of 2
     assert(apps.head.getExecutorLimit === 2)
     expectedCores = (getMasterState.workers.map(_.cores).sum * perc).ceil.toInt
+    assert(expectedCores === 10) // 10 out of 20
     assert(apps.head.coresGranted === expectedCores)
-    // request 1 more; this one won't go through
-//    assert(sc.requestExecutors(1))
-//    apps = getApplications
-//    assert(apps.head.executors.size === 2)
-//    assert(apps.head.getExecutorLimit === 3)
-    //    // kill all existing executors; we should end up with 3 - 2 = 1 executor
-    //    assert(killAllExecutors(sc))
-    //    apps = getApplications
-    //    assert(apps.head.executors.size === 1)
-    //    assert(apps.head.getExecutorLimit === 1)
-    //    // kill all executors again; this time we'll have 1 - 1 = 0 executors left
-    //    assert(killAllExecutors(sc))
-    //    apps = getApplications
-    //    assert(apps.head.executors.size === 0)
-    //    assert(apps.head.getExecutorLimit === 0)
-    //    // request many more; this increases the limit well beyond the cluster capacity
-    //    assert(sc.requestExecutors(1000))
-    //    apps = getApplications
-    //    assert(apps.head.executors.size === 2)
-    //    assert(apps.head.getExecutorLimit === 1000)
   }
 
   test("kill the same executor twice (SPARK-9795)") {
